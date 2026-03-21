@@ -66,6 +66,8 @@ class _ChatbotPageState extends State<ChatbotPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('레시피 챗봇'),
+        backgroundColor: Colors.deepPurple,
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
               onPressed: _clearChat,

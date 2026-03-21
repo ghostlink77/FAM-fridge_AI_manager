@@ -110,6 +110,7 @@ class _InventoryListPageState extends State<InventoryListPage>
         appBar: AppBar(
         title: Text('${widget.userId}님의 냉장고'),
         backgroundColor: Colors.deepPurple,
+        automaticallyImplyLeading: false,
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,

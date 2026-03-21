@@ -22,6 +22,7 @@ class _CalendarPageState extends State<CalendarPage> {
       appBar: AppBar(
         title: const Text('유통기한 캘린더'),
         backgroundColor: Colors.deepPurple,
+        automaticallyImplyLeading: false,
       ),
 
       body: StreamBuilder<QuerySnapshot>(
