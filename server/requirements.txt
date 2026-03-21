@@ -1,0 +1,19 @@
+# FAM Voice API Server
+# pip install -r requirements.txt
+
+# === Server ===
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+python-multipart==0.0.9
+
+# === STT - Whisper ===
+openai-whisper>=20231117
+
+# === NER - SafeTensors ===
+transformers>=4.40.0
+torch>=2.0.0
+safetensors>=0.4.0
+numpy>=1.24.0
+
+# === ONNX (optional - after convert_to_onnx.py, USE_ONNX=True) ===
+# onnxruntime>=1.17.0

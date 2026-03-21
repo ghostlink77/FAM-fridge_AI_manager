@@ -1,0 +1,39 @@
+# 1. 빌드 및 자동 생성 파일
+build/
+.dart_tool/
+.pub-cache/
+.packages
+ios/Pods/
+ios/.symlinks/
+.metadata
+.flutter-plugins-dependencies
+
+# 2. IDE 및 시스템 설정 (추가됨)
+.idea/
+.vscode/
+*.iml
+.serena/
+.serenaignore
+
+# 3. 플랫폼 폴더 (안드로이드/iOS 외에 안 쓴다면 추가)
+linux/
+macos/
+windows/
+web/
+
+# 4. Firebase Functions (Node.js 의존성 제외)
+functions/node_modules/
+functions/.runtimeconfig.json
+
+# 5. 보안 및 설정
+.env*
+google-services.json
+GoogleService-Info.plist
+
+# 6. 미디어 및 로그 파일 (추가됨)
+assets/images/
+assets/fonts/
+*.svg
+*.mp4
+*.log
+*.png

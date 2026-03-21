@@ -1,0 +1,6 @@
+local_packages/
+windows/
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
