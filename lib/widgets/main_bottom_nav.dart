@@ -3,6 +3,7 @@ import '../screens/calendar_page.dart';
 import '../screens/inventory_list_page.dart';
 import '../screens/inventory_add_selection_page.dart';
 import '../screens/chatbot_page.dart';
+import '../theme/app_colors.dart';
 
 class MainBottomNav extends StatelessWidget {
   final int currentIndex;
@@ -35,7 +36,7 @@ class MainBottomNav extends StatelessWidget {
 
   Widget _buildTab(BuildContext context, int index, IconData icon, String label){
     final isSelected = currentIndex == index;
-    final color = isSelected ? Colors.deepPurple : Colors.grey;
+    final color = isSelected ? AppColors.primary : Colors.grey;
 
     return Expanded(
       child: Column(
@@ -85,7 +86,6 @@ class MainBottomNav extends StatelessWidget {
           ),
         );
       },
-      backgroundColor: Colors.deepPurple,
       shape: const CircleBorder(),
       child: const Icon(Icons.add, color: Colors.white, size: 32),
     );

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../theme/app_colors.dart';
+
 class SignUpPage extends StatefulWidget {
   final Function() onSignUpSuccess;
 
@@ -103,7 +105,6 @@ class _SignUpPageState extends State<SignUpPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('회원가입'),
-        backgroundColor: Colors.deepPurple,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -166,7 +167,6 @@ class _SignUpPageState extends State<SignUpPage> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _signUp,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -196,7 +196,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 onPressed: () => Navigator.pop(context),
                 child: const Text(
                   '이미 계정이 있으신가요? 로그인',
-                  style: TextStyle(color: Colors.deepPurple),
+                  style: TextStyle(color: AppColors.primary),
                 ),
               ),
             ],

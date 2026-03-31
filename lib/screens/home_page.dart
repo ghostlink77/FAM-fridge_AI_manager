@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 import 'splash_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -21,7 +22,6 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('홈'),
-        backgroundColor: Colors.deepPurple,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -58,7 +58,6 @@ class HomePage extends StatelessWidget {
             ElevatedButton(
               onPressed: () => _logout(context),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 32,
                   vertical: 12,

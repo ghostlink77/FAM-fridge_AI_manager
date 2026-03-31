@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'login_page.dart';
 import 'sign_up_page.dart';
+import '../theme/app_colors.dart';
 
 class SplashPage extends StatelessWidget {
   const SplashPage({super.key});
@@ -40,7 +41,7 @@ class SplashPage extends StatelessWidget {
             const Icon(
               Icons.kitchen,
               size: 80,
-              color: Colors.deepPurple,
+              color: AppColors.primary
             ),
             const SizedBox(height: 24),
             const Text(
@@ -66,7 +67,6 @@ class SplashPage extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () => _goToSignUp(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),

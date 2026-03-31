@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 import 'inventory_list_page.dart';
 
 class LoginSuccessPage extends StatefulWidget {
@@ -60,7 +61,7 @@ class _LoginSuccessPageState extends State<LoginSuccessPage> {
               width: 30,
               height: 30,
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
               ),
             ),
           ],

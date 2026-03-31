@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../theme/app_colors.dart';
 import '../widgets/main_bottom_nav.dart';
 
 class InventoryAddInputPage extends StatefulWidget {
@@ -160,7 +161,6 @@ class _InventoryAddInputPageState extends State<InventoryAddInputPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('재고 직접 등록'),
-        backgroundColor: Colors.deepPurple,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 85),
@@ -236,7 +236,6 @@ class _InventoryAddInputPageState extends State<InventoryAddInputPage> {
                 child: ElevatedButton(
                   onPressed: _submitForm,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   child: const Text(

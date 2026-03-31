@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
+import '../theme/app_colors.dart';
 import '../widgets/main_bottom_nav.dart';
 
 class ChatbotPage extends StatefulWidget {
@@ -66,7 +67,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('레시피 챗봇'),
-        backgroundColor: Colors.deepPurple,
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
@@ -316,7 +316,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
                 icon: const Icon(Icons.remove_shopping_cart, size: 16),
                 label: const Text('재고 차감'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
@@ -346,7 +345,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
@@ -364,7 +363,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.deepPurple,
+                color: AppColors.primary,
               ),
             ),
             if (description.isNotEmpty) ...[
@@ -443,7 +442,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
           if (tips.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Text('💡 분석',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple)),
+                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
             const SizedBox(height: 4),
             ...tips.map((e) => Padding(
               padding: const EdgeInsets.only(bottom: 4),
@@ -573,7 +572,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
                               items[index]['selected'] = val ?? false;
                             });
                           },
-                          activeColor: Colors.deepPurple,
+                          activeColor: AppColors.primary,
                         ),
                         Expanded(
                           child: Text('${item['name']}'),
@@ -608,7 +607,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
                     await _deductInventory(items);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: AppColors.primary,
                   ),
                   child: const Text('차감하기', style: TextStyle(color: Colors.white)),
                 ),

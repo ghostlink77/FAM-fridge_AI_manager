@@ -8,6 +8,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../theme/app_colors.dart';
 import '../widgets/main_bottom_nav.dart';
 
 class InventoryAddOcrPage extends StatefulWidget {
@@ -455,7 +456,6 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('사진으로 재고 등록'),
-        backgroundColor: Colors.deepPurple,
       ),
       body: _isProcessing
           ? const Center(child: CircularProgressIndicator())
@@ -471,7 +471,7 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
                         onPressed: _pickImageFromGallery,
                         icon: const Icon(Icons.photo_library, color: Colors.white),
                         label: const Text('갤러리에서 선택', style: TextStyle(color: Colors.white)),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+                        style: ElevatedButton.styleFrom(),
                       ),
                     ),
                   if (_selectedImageFile != null) ...[
@@ -560,7 +560,7 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: _saveSelectedItems,
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
                         child: const Text('선택한 항목 저장', style: TextStyle(color: Colors.white)),
                       ),
                     ),

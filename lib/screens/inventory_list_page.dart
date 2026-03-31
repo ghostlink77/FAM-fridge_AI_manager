@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/main_bottom_nav.dart';
+import '../theme/app_colors.dart';
+import '../utils/freshness_utils.dart';
 
 class InventoryItem {
   final String id;
@@ -126,7 +128,6 @@ class _InventoryListPageState extends State<InventoryListPage>
       child: Scaffold(
         appBar: AppBar(
           title: Text('${widget.userId}님의 냉장고'),
-          backgroundColor: Colors.deepPurple,
           automaticallyImplyLeading: false,
           elevation: 0,
           bottom: TabBar(
@@ -202,46 +203,99 @@ class _InventoryListPageState extends State<InventoryListPage>
       itemCount: sortedItems.length,
       itemBuilder: (context, index) {
         final item = sortedItems[index];
+
+        final status = getFreshStatus(item.consumeByDate);
+        final daysLeft = getDaysLeft(item.consumeByDate);
+        final ddayText = getDdayText(item.consumeByDate);
+        final statusColor = getStatusColor(status);
+        final statusBgColor = getStatusBgColor(status);
+
         return Card(
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: statusColor.withValues(alpha: 0.3),
+              width: 0.5,
+            ),
+          ),
           child: InkWell(
             onTap: () => _showEditDialog(item),
             onLongPress: () => _showItemActionDialog(item),
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            borderRadius: BorderRadius.circular(12),
+            // ② Container로 감싸서 왼쪽 테두리 구현
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(color: statusColor, width: 4),
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.all(14),
+              // ③ Row: D-day 뱃지 + 텍스트 영역
+              child: Row(
                 children: [
-                  Text(
-                    item.name,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '소비기한: ${item.consumeByDate}',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
+                  // D-day 뱃지
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: statusBgColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      ddayText,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: statusColor,
                       ),
-                      Expanded(
-                        child: Text(
-                          '수량: ${item.quantity == item.quantity.toInt() ? item.quantity.toInt() : item.quantity}개',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                          textAlign: TextAlign.end,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '등록일자: ${item.registrationDate}',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  const SizedBox(width: 14),
+                  // 텍스트 영역
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 이름 + 수량
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.name,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              '${item.quantity == item.quantity.toInt() ? item.quantity.toInt() : item.quantity}개',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        // 소비기한 텍스트 (상태별 색상)
+                        Text(
+                          _buildExpiryText(item.consumeByDate, status, daysLeft),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: status == FreshStatus.unknown
+                                ? AppColors.textSecondary
+                                : statusColor,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -250,6 +304,22 @@ class _InventoryListPageState extends State<InventoryListPage>
         );
       },
     );
+  }
+
+  String _buildExpiryText(String consumeByDate, FreshStatus status, int daysLeft){
+    if (consumeByDate.isEmpty) return '소비기한 미등록';
+
+    switch (status) {
+      case FreshStatus.danger:
+        if (daysLeft == 0) return '소비기한 $consumeByDate · 오늘 만료!';
+        return '소비기한 $consumeByDate · ${-daysLeft}일 경과';
+      case FreshStatus.warning:
+        return '소비기한 $consumeByDate · $daysLeft일 남음 ⚠';
+      case FreshStatus.fresh:
+        return '소비기한 $consumeByDate';
+      case FreshStatus.unknown:
+        return '소비기한 미등록';
+    }
   }
 
   Future<void> _showEditDialog(InventoryItem item) async {
@@ -315,7 +385,6 @@ class _InventoryListPageState extends State<InventoryListPage>
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
               child: const Text('저장', style: TextStyle(color: Colors.white)),
             ),
           ],

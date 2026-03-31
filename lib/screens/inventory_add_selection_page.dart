@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 import 'inventory_add_input_page.dart';
 import 'inventory_add_ocr_page.dart';
 import 'inventory_add_voice_page.dart';
@@ -20,7 +21,6 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('재고 등록 방법 선택'),
-        backgroundColor: Colors.deepPurple,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 85),
@@ -43,8 +43,8 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
                 margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.deepPurple.withValues(alpha: 0.1),
-                  border: Border.all(color: Colors.deepPurple, width: 2),
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  border: Border.all(color: AppColors.primary, width: 2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -52,7 +52,7 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
                     Icon(
                       Icons.edit,
                       size: 40,
-                      color: Colors.deepPurple,
+                      color: AppColors.primary,
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -60,7 +60,7 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.deepPurple,
+                        color: AppColors.primary,
                       ),
                     ),
                   ],
@@ -83,8 +83,8 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
                 margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.deepPurple.withValues(alpha: 0.1),
-                  border: Border.all(color: Colors.deepPurple, width: 2),
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  border: Border.all(color: AppColors.primary, width: 2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -92,7 +92,7 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
                     Icon(
                       Icons.camera_alt,
                       size: 40,
-                      color: Colors.deepPurple,
+                      color: AppColors.primary,
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -100,7 +100,7 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.deepPurple,
+                        color: AppColors.primary,
                       ),
                     ),
                   ],
@@ -123,8 +123,8 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
                 margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.deepPurple.withValues(alpha: 0.1),
-                  border: Border.all(color: Colors.deepPurple, width: 2),
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  border: Border.all(color: AppColors.primary, width: 2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -132,7 +132,7 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
                     Icon(
                       Icons.mic,
                       size: 40,
-                      color: Colors.deepPurple,
+                      color: AppColors.primary,
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -140,7 +140,7 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.deepPurple,
+                        color: AppColors.primary,
                       ),
                     ),
                   ],

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
 import '../services/voice_api_service.dart';
+import '../theme/app_colors.dart';
 import '../widgets/main_bottom_nav.dart';
 
 /// 음성으로 식료품을 등록하는 페이지
@@ -273,7 +274,6 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('음성으로 등록'),
-        backgroundColor: Colors.deepPurple,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -282,15 +282,15 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
           children: [
             // ── 상태 메시지 ──
             Card(
-              color: Colors.deepPurple.withValues(alpha: 0.05),
+              color: AppColors.primary.withValues(alpha: 0.05),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
                     if (_isProcessing)
-                      const CircularProgressIndicator(color: Colors.deepPurple)
+                      const CircularProgressIndicator(color: AppColors.primary)
                     else
-                      const Icon(Icons.mic, size: 48, color: Colors.deepPurple),
+                      const Icon(Icons.mic, size: 48, color: AppColors.primary),
                     const SizedBox(height: 12),
                     Text(
                       _statusMessage,
@@ -310,7 +310,7 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
                 icon: const Icon(Icons.audio_file),
                 label: const Text('음성 파일 선택'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
@@ -322,7 +322,7 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
                 icon: const Icon(Icons.mic),
                 label: const Text('음성 녹음'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
@@ -333,7 +333,7 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.deepPurple.withValues(alpha: 0.08),
+                    color: AppColors.primary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Column(
@@ -341,7 +341,7 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
                       const Text(
                         '음성 감지 중',
                         style: TextStyle(
-                          color: Colors.deepPurple,
+                          color: AppColors.primary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -359,7 +359,7 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
                             child: ElevatedButton(
                               onPressed: _finishRecording,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.deepPurple,
+                                backgroundColor: AppColors.primary,
                                 foregroundColor: Colors.white,
                               ),
                               child: const Text('완료'),
@@ -383,7 +383,7 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
                   hintText: '예: 사과 세 개랑 우유 두 팩 사왔어',
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.deepPurple),
+                    icon: const Icon(Icons.send, color: AppColors.primary),
                     onPressed: () => _processText(_textController.text),
                   ),
                 ),
@@ -426,7 +426,7 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
                 return Card(
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: Colors.deepPurple,
+                      backgroundColor: AppColors.primary,
                       child: Text(
                         '${idx + 1}',
                         style: const TextStyle(color: Colors.white),
