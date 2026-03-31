@@ -16,15 +16,56 @@ class _CalendarPageState extends State<CalendarPage> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
+  List<String> _extractConsumeByDates(Map<String, dynamic> data) {
+    final dates = <String>[];
+
+    final consumeByDatesRaw = data['consumeByDates'];
+    if (consumeByDatesRaw is List) {
+      for (final date in consumeByDatesRaw) {
+        final text = date?.toString().trim();
+        if (text != null && DateTime.tryParse(text) != null) {
+          dates.add(text);
+        }
+      }
+    }
+
+    final singleDate = data['consumeByDate']?.toString().trim();
+    if (singleDate != null && DateTime.tryParse(singleDate) != null) {
+      dates.add(singleDate);
+    }
+
+    return dates.toSet().toList()..sort();
+  }
+
+  Map<DateTime, List<String>> _buildConsumeByMap(QuerySnapshot? snapshot) {
+    final map = <DateTime, List<String>>{};
+    if (snapshot == null) return map;
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final name = data['name'] ?? '';
+      final dateStrings = _extractConsumeByDates(data);
+
+      for (final dateStr in dateStrings) {
+        final parsed = DateTime.tryParse(dateStr);
+        if (parsed == null) continue;
+        final key = DateTime.utc(parsed.year, parsed.month, parsed.day);
+        map.putIfAbsent(key, () => []);
+        map[key]!.add(name);
+      }
+    }
+
+    return map;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('유통기한 캘린더'),
+        title: const Text('소비기한 캘린더'),
         backgroundColor: Colors.deepPurple,
         automaticallyImplyLeading: false,
       ),
-
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
@@ -32,18 +73,15 @@ class _CalendarPageState extends State<CalendarPage> {
             .collection('inventory')
             .snapshots(),
         builder: (context, snapshot) {
-          // snapshot에서 데이터를 꺼내서 Map으로 변환
-          final expiryMap = _buildExpiryMap(snapshot.data);
+          final consumeByMap = _buildConsumeByMap(snapshot.data);
 
           return Column(
-            children:[
+            children: [
               TableCalendar(
                 firstDay: DateTime.now().subtract(const Duration(days: 365)),
                 lastDay: DateTime.now().add(const Duration(days: 365)),
                 focusedDay: _focusedDay,
-                headerStyle: const HeaderStyle(
-                  formatButtonVisible: false,
-                ),
+                headerStyle: const HeaderStyle(formatButtonVisible: false),
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                 onDaySelected: (selectedDay, focusedDay) {
                   setState(() {
@@ -55,9 +93,8 @@ class _CalendarPageState extends State<CalendarPage> {
                   _focusedDay = focusedDay;
                 },
                 eventLoader: (day) {
-                  // 날짜를 UTC로 통일해서 Map에서 조회
                   final key = DateTime.utc(day.year, day.month, day.day);
-                  return expiryMap[key] ?? [];
+                  return consumeByMap[key] ?? [];
                 },
                 calendarBuilders: CalendarBuilders(
                   markerBuilder: (context, date, events) {
@@ -76,10 +113,7 @@ class _CalendarPageState extends State<CalendarPage> {
                             ),
                             child: Text(
                               event.toString(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 8,
-                              ),
+                              style: const TextStyle(color: Colors.white, fontSize: 8),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
                             ),
@@ -91,52 +125,24 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              Expanded(
-                child: _buildSelectedDayList(expiryMap),
-              ),
-            ]
+              Expanded(child: _buildSelectedDayList(consumeByMap)),
+            ],
           );
-
-
         },
       ),
-
-      bottomNavigationBar: MainBottomNav(
-          currentIndex: 0,
-          userId: widget.userId
-      ),
+      bottomNavigationBar: MainBottomNav(currentIndex: 0, userId: widget.userId),
       floatingActionButton: MainBottomNav.buildFAB(context, widget.userId),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 
-  Map<DateTime, List<String>> _buildExpiryMap(QuerySnapshot? snapshot){
-    final map = <DateTime, List<String>>{};
-    if (snapshot == null) return map;
-
-    for (final doc in snapshot.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final dateStr = data['expiryDate'] ?? '';
-      if (dateStr.isEmpty) continue;
-
-      final parsed = DateTime.parse(dateStr);
-      final key = DateTime.utc(parsed.year, parsed.month, parsed.day);
-      final name = doc['name'] ?? '';
-
-      // 해당 날짜 키가 없으면 빈 리스트 만들고, 음식명 추가
-      map.putIfAbsent(key, () => []);
-      map[key]!.add(name);
-    }
-    return map;
-  }
-
-  Widget _buildSelectedDayList(Map<DateTime, List<String>> expiryMap) {
+  Widget _buildSelectedDayList(Map<DateTime, List<String>> consumeByMap) {
     if (_selectedDay == null) {
       return const Center(child: Text('날짜를 선택하면 만료 예정 식품이 표시됩니다'));
     }
 
     final key = DateTime.utc(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
-    final items = expiryMap[key] ?? [];
+    final items = consumeByMap[key] ?? [];
 
     if (items.isEmpty) {
       return Center(child: Text('${_selectedDay!.month}/${_selectedDay!.day} - 만료 예정 식품 없음'));
@@ -150,7 +156,9 @@ class _CalendarPageState extends State<CalendarPage> {
           child: ListTile(
             leading: const Icon(Icons.warning_amber, color: Colors.red),
             title: Text(items[index]),
-            subtitle: Text('${_selectedDay!.year}-${_selectedDay!.month.toString().padLeft(2, '0')}-${_selectedDay!.day.toString().padLeft(2, '0')} 만료'),
+            subtitle: Text(
+              '${_selectedDay!.year}-${_selectedDay!.month.toString().padLeft(2, '0')}-${_selectedDay!.day.toString().padLeft(2, '0')} 만료',
+            ),
           ),
         );
       },

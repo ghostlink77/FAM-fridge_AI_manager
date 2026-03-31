@@ -159,7 +159,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
     // 2. 재고 목록을 텍스트로 변환
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-
     List<String> expired = [];
     List<String> expiringSoon = [];
     List<String> fresh = [];
@@ -169,21 +168,21 @@ class _ChatbotPageState extends State<ChatbotPage> {
       final name = data['name'] ?? '알 수 없음';
       final quantity = data['quantity'] ?? 1;
       final unit = data['unit'] ?? '개';
-      final expiryStr = data['expiryDate'] ?? '';
+      final expiryStr = data['consumeByDate'] ?? data['expiryDate'] ?? '';
 
-      DateTime? expiryDate;
+      DateTime? consumeByDate;
       try {
-        expiryDate = DateTime.parse(expiryStr);
+        consumeByDate = DateTime.parse(expiryStr);
       } catch(_) {}
-      final itemText = '$name ${quantity}${unit} (유통기한: $expiryStr)';
+      final itemText = '$name ${quantity}${unit} (소비기한: $expiryStr)';
 
-      if (expiryDate == null){
+      if (consumeByDate == null){
         fresh.add(itemText);
       }
-      else if (expiryDate.isBefore(today)) {
+      else if (consumeByDate.isBefore(today)) {
         expired.add(itemText);
       }
-      else if (expiryDate.difference(today).inDays <= 7) {
+      else if (consumeByDate.difference(today).inDays <= 7) {
         expiringSoon.add(itemText);
       }
       else {
@@ -195,7 +194,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
     if (snapshot.docs.isNotEmpty) {
       final sections = <String>[];
       if (expired.isNotEmpty){
-        sections.add('⚠️ 유통기한 지난 재료:\n${expired.join('\n')}');
+        sections.add('⚠️ 소비기한 지난 재료:\n${expired.join('\n')}');
       }
       if (expiringSoon.isNotEmpty){
         sections.add('⏰ 7일 이내 만료 예정:\n${expiringSoon.join('\n')}');
@@ -414,9 +413,9 @@ class _ChatbotPageState extends State<ChatbotPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 유통기한 지난 재료
+          // 소비기한 지난 재료
           if (expired.isNotEmpty) ...[
-            const Text('⚠️ 유통기한 지남',
+            const Text('⚠️ 소비기한 지남',
                 style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
             const SizedBox(height: 4),
             ...expired.map((e) => Text('  • $e', style: const TextStyle(fontSize: 13))),

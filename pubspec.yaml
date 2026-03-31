@@ -45,6 +45,7 @@ dependencies:
   table_calendar: ^3.2.0
   flutter_markdown: ^0.7.6
   flutter_dotenv: ^5.2.1
+  record: ^6.2.0
 
 dev_dependencies:
   flutter_test:
@@ -56,10 +57,6 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-
-dependency_overrides:
-  firebase_auth:
-    path: local_packages/firebase_auth
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

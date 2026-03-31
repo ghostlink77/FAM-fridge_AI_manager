@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+import 'package:record/record.dart';
 import '../services/voice_api_service.dart';
 import '../widgets/main_bottom_nav.dart';
 
@@ -20,13 +23,22 @@ class InventoryAddVoicePage extends StatefulWidget {
 
 class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
   final VoiceApiService _voiceService = VoiceApiService();
+  final AudioRecorder _audioRecorder = AudioRecorder();
 
   bool _isProcessing = false;
+  bool _isRecording = false;
   String _statusMessage = '음성 파일을 선택하거나 녹음하세요';
   String _recognizedText = '';
   List<FoodItem> _extractedItems = [];
 
   final TextEditingController _textController = TextEditingController();
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    _audioRecorder.dispose();
+    super.dispose();
+  }
 
   // ──────────────────────────────────────
   // 서버로 음성 바이트 전송 & 결과 받기
@@ -103,6 +115,99 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
     } catch (e) {
       setState(() {
         _statusMessage = '파일 선택 오류: $e';
+      });
+    }
+  }
+
+  String _fileNameFromPath(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    final parts = normalized.split('/');
+    final maybeName = parts.isNotEmpty ? parts.last : '';
+    if (maybeName.isEmpty || maybeName.startsWith('blob:')) {
+      return 'recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    }
+    return maybeName;
+  }
+
+  Future<void> _startRecording() async {
+    if (_isProcessing || _isRecording) return;
+
+    try {
+      final hasPermission = await _audioRecorder.hasPermission();
+      if (!hasPermission) {
+        setState(() {
+          _statusMessage = '마이크 권한이 필요합니다.';
+        });
+        return;
+      }
+
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000,
+          sampleRate: 44100,
+        ),
+        path: 'voice_record_${DateTime.now().millisecondsSinceEpoch}.m4a',
+      );
+
+      setState(() {
+        _isRecording = true;
+        _statusMessage = '음성 감지 중';
+      });
+    } catch (e) {
+      setState(() {
+        _statusMessage = '녹음 시작 실패: $e';
+      });
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    if (!_isRecording) return;
+
+    try {
+      await _audioRecorder.stop();
+      setState(() {
+        _isRecording = false;
+        _statusMessage = '음성 녹음을 취소했습니다.';
+      });
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+        _statusMessage = '녹음 취소 실패: $e';
+      });
+    }
+  }
+
+  Future<void> _finishRecording() async {
+    if (!_isRecording) return;
+
+    try {
+      final path = await _audioRecorder.stop();
+
+      setState(() {
+        _isRecording = false;
+      });
+
+      if (path == null || path.isEmpty) {
+        setState(() {
+          _statusMessage = '녹음된 파일을 찾을 수 없습니다.';
+        });
+        return;
+      }
+
+      Uint8List bytes;
+      if (kIsWeb) {
+        final response = await http.get(Uri.parse(path));
+        bytes = response.bodyBytes;
+      } else {
+        bytes = await XFile(path).readAsBytes();
+      }
+
+      await _processAudioBytes(bytes, _fileNameFromPath(path));
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+        _statusMessage = '녹음 완료 처리 실패: $e';
       });
     }
   }
@@ -203,6 +308,63 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
+              const SizedBox(height: 16),
+
+              ElevatedButton.icon(
+                onPressed: _isRecording ? null : _startRecording,
+                icon: const Icon(Icons.mic),
+                label: const Text('음성 녹음'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+
+              if (_isRecording) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        '음성 감지 중',
+                        style: TextStyle(
+                          color: Colors.deepPurple,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _cancelRecording,
+                              child: const Text('취소'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: _finishRecording,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.deepPurple,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('완료'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 16),
               // ── 텍스트 직접 입력 (NER 테스트용) ──
               const Divider(),
