@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 import '../widgets/main_bottom_nav.dart';
@@ -31,6 +30,7 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
   XFile? _consumeByImageFile;
   Uint8List? _consumeByImageBytes;
   bool _isUploadingConsumeBy = false;
+  List<String> _unmatchedDates = [];
 
   bool _isValidDateString(String? value) {
     if (value == null || value.trim().isEmpty) return false;
@@ -189,45 +189,83 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
     setState(() => _isUploadingConsumeBy = true);
 
     try {
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse(dotenv.env['EXPIRY_SERVER_URL'] ?? ''),
+      final productNames = _parsedItems
+          .map((e) => e['name']?.toString() ?? '')
+          .where((n) => n.isNotEmpty)
+          .toList();
+      final namesJson = jsonEncode(productNames);
+
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash',
+        apiKey: dotenv.env['GEMINI_API_KEY'] ?? '',
+        requestOptions: RequestOptions(apiVersion: 'v1'),
       );
 
-      request.files.add(http.MultipartFile.fromBytes(
-        'file',
-        bytes,
-        filename: fileName,
-      ));
+      final prompt = TextPart(
+        '이 이미지는 아래 상품들의 포장 사진입니다.\n'
+        '상품 목록: $namesJson\n\n'
+        '아래 형식의 JSON으로 반환해줘:\n'
+        '{\n'
+        '  "matched": {"상품명": "YYYY-MM-DD", ...},\n'
+        '  "unmatched": ["YYYY-MM-DD", ...]\n'
+        '}\n'
+        '규칙:\n'
+        '- 소비기한 또는 유통기한만 추출 (제조일 제외)\n'
+        '- 목록의 상품과 매칭되면 matched에, 매칭 안 되면 unmatched 배열에 포함\n'
+        '- 상품명이 완전히 같지 않아도 유사하면 matched로 처리\n'
+        '- 이미지에서 찾을 수 없는 상품은 matched에서 null로 설정\n'
+        '- 날짜는 반드시 YYYY-MM-DD 형식\n'
+        '- JSON만 반환',
+      );
 
-      final streamed = await request.send().timeout(const Duration(seconds: 30));
-      final response = await http.Response.fromStream(streamed);
+      final response = await model.generateContent([
+        Content.multi([
+          prompt,
+          DataPart('image/jpeg', bytes),
+        ]),
+      ]);
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final labels = {'소비기한'};
-        final dates = (data['dates'] as List<dynamic>? ?? [])
-            .where((e) => labels.contains(e['label']))
-            .map((e) => e['date'] as String)
-            .where((e) => _isValidDateString(e))
-            .toList();
+      final content = response.text ?? '{}';
+      Map<String, dynamic> parsed = {};
 
-        setState(() {
-          for (int i = 0; i < _parsedItems.length; i++) {
-            _parsedItems[i]['consumeByDate'] = i < dates.length ? dates[i] : null;
-          }
-        });
-
-        if (dates.isEmpty) {
-          _showErrorMessage('소비기한 날짜를 찾을 수 없습니다.');
-        } else {
-          _showSuccessMessage('소비기한 ${dates.length}개를 찾았습니다.');
+      try {
+        parsed = jsonDecode(content) as Map<String, dynamic>;
+      } catch (_) {
+        final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(content);
+        if (jsonMatch != null) {
+          parsed = jsonDecode(jsonMatch.group(0)!) as Map<String, dynamic>;
         }
+      }
+
+      final matched = (parsed['matched'] as Map<String, dynamic>?) ?? {};
+      final unmatched = ((parsed['unmatched'] as List<dynamic>?) ?? [])
+          .map((e) => e?.toString())
+          .where((e) => _isValidDateString(e))
+          .toList();
+
+      setState(() {
+        for (int i = 0; i < _parsedItems.length; i++) {
+          final name = _parsedItems[i]['name']?.toString() ?? '';
+          final date = matched[name]?.toString();
+          if (_isValidDateString(date)) {
+            _parsedItems[i]['consumeByDate'] = date;
+          }
+        }
+        _unmatchedDates = unmatched.cast<String>();
+      });
+
+      final matchedCount = matched.values.where((v) => _isValidDateString(v?.toString())).length;
+      if (matchedCount == 0 && unmatched.isEmpty) {
+        _showErrorMessage('소비기한 날짜를 찾을 수 없습니다.');
       } else {
-        _showErrorMessage('서버 오류: ${response.statusCode}');
+        final msg = StringBuffer('소비기한 ${matchedCount}개 매칭 완료.');
+        if (unmatched.isNotEmpty) {
+          msg.write(' 미매칭 날짜 ${unmatched.length}개를 직접 배정해주세요.');
+        }
+        _showSuccessMessage(msg.toString());
       }
     } catch (e) {
-      _showErrorMessage('서버 연결 실패: $e');
+      _showErrorMessage('소비기한 인식 실패: $e');
     } finally {
       setState(() => _isUploadingConsumeBy = false);
     }
@@ -350,6 +388,54 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
     }
   }
 
+  Future<void> _showAssignDialog(String date) async {
+    final names = _parsedItems
+        .map((e) => e['name']?.toString() ?? '')
+        .where((n) => n.isNotEmpty)
+        .toList();
+    if (names.isEmpty) return;
+
+    String? selected = names.first;
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('날짜 배정: $date'),
+        content: StatefulBuilder(
+          builder: (context, setDialogState) => DropdownButton<String>(
+            value: selected,
+            isExpanded: true,
+            items: names
+                .map((n) => DropdownMenuItem(value: n, child: Text(n)))
+                .toList(),
+            onChanged: (v) => setDialogState(() => selected = v),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                final idx = _parsedItems.indexWhere(
+                  (e) => e['name']?.toString() == selected,
+                );
+                if (idx != -1) {
+                  _parsedItems[idx]['consumeByDate'] = date;
+                }
+                _unmatchedDates.remove(date);
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('배정'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showErrorMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -447,6 +533,27 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
                             ? Image.memory(_consumeByImageBytes!, height: 120, fit: BoxFit.cover)
                             : Image.file(File(_consumeByImageFile!.path), height: 120, fit: BoxFit.cover),
                       ),
+                    ],
+                    if (_unmatchedDates.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      const Text('미매칭 날짜', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      const Text(
+                        '상품과 연결되지 않은 날짜입니다. 배정 버튼을 눌러 직접 연결하세요.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 8),
+                      ..._unmatchedDates.map((date) => Card(
+                            color: Colors.orange.shade50,
+                            child: ListTile(
+                              leading: const Icon(Icons.calendar_today, color: Colors.orange),
+                              title: Text(date),
+                              trailing: TextButton(
+                                onPressed: () => _showAssignDialog(date),
+                                child: const Text('배정'),
+                              ),
+                            ),
+                          )),
                     ],
                     const SizedBox(height: 16),
                     SizedBox(

@@ -228,13 +228,20 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
             .collection('inventory')
             .doc();
 
+        final today = DateTime.now();
+        final registrationDate =
+            '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
         batch.set(docRef, {
           'name': item.name,
           'quantity': item.quantity,
           'unit': item.unit,
           'category': item.category,
+          'registrationDate': registrationDate,
+          if (item.consumeByDate != null) 'consumeByDate': item.consumeByDate,
+          if (item.consumeByDate != null) 'consumeByDates': [item.consumeByDate],
           'addedAt': FieldValue.serverTimestamp(),
-          'source': 'voice', // 음성 등록임을 표시
+          'source': 'voice',
         });
       }
 
@@ -426,7 +433,10 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
                       ),
                     ),
                     title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text('${item.quantity} ${item.unit} · ${item.category}'),
+                    subtitle: Text(
+                      '${item.quantity} ${item.unit} · ${item.category}'
+                      '${item.consumeByDate != null ? ' · 소비기한 ${item.consumeByDate}' : ''}',
+                    ),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete_outline, color: Colors.red),
                       onPressed: () {

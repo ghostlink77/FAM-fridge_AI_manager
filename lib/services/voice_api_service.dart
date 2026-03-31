@@ -62,6 +62,7 @@ class VoiceApiService {
             quantity: (item['quantity'] as num).toDouble(),
             unit: item['unit'] as String,
             category: item['category'] as String,
+            consumeByDate: item['consumeByDate'] as String?,
           );
         }).toList();
 
@@ -106,6 +107,7 @@ class VoiceApiService {
             quantity: (item['quantity'] as num).toDouble(),
             unit: item['unit'] as String,
             category: item['category'] as String,
+            consumeByDate: item['consumeByDate'] as String?,
           );
         }).toList();
         return VoiceApiResult(success: true, text: json['text'] as String, items: items);
@@ -135,15 +137,17 @@ class VoiceApiResult {
 
 /// 추출된 음식 항목
 class FoodItem {
-  String name;       // 음식명
-  double quantity;   // 수량
-  String unit;       // 단위
-  String category;   // 카테고리
+  String name;
+  double quantity;
+  String unit;
+  String category;
+  String? consumeByDate;
 
   FoodItem({
     required this.name,
     required this.quantity,
     required this.unit,
     required this.category,
+    this.consumeByDate,
   });
 }

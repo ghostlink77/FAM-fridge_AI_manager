@@ -138,14 +138,52 @@ def run_inference(text: str) -> list[dict]:
     return entities
 
 
+def extract_dates_from_text(text: str) -> list[dict]:
+    """텍스트에서 날짜 패턴을 추출하여 위치와 함께 반환"""
+    from datetime import datetime
+    current_year = datetime.now().year
+    patterns = [
+        r'(\d{2,4})년\s*(\d{1,2})월\s*(\d{1,2})일',  # 2026년 4월 15일
+        r'(\d{2,4})[./\-](\d{1,2})[./\-](\d{1,2})',  # 2026.04.15 / 26-04-15
+        r'(\d{1,2})월\s*(\d{1,2})일',                 # 4월 15일 (연도 없음)
+    ]
+    results = []
+    for pattern in patterns:
+        for m in re.finditer(pattern, text):
+            groups = m.groups()
+            try:
+                if len(groups) == 3:
+                    y, mo, d = int(groups[0]), int(groups[1]), int(groups[2])
+                    if y < 100:
+                        y += 2000
+                else:
+                    y = current_year
+                    mo, d = int(groups[0]), int(groups[1])
+                if not (2000 <= y <= current_year + 10 and 1 <= mo <= 12 and 1 <= d <= 31):
+                    continue
+                datetime(y, mo, d)
+                results.append({"date": f"{y:04d}-{mo:02d}-{d:02d}", "start": m.start(), "end": m.end()})
+            except (ValueError, IndexError):
+                continue
+    seen, unique = set(), []
+    for r in sorted(results, key=lambda x: x["start"]):
+        if r["date"] not in seen:
+            seen.add(r["date"])
+            unique.append(r)
+    return unique
+
+
 def extract_food_items(text: str) -> list[dict]:
     """main.py에서 호출되는 메인 함수"""
     entities = run_inference(text)
     foods = [e for e in entities if e["label"] == "FOOD"]
-    qtys = [e for e in entities if e["label"] == "QTY"]
+    qtys  = [e for e in entities if e["label"] == "QTY"]
+    dates = extract_dates_from_text(text)
+    used_date_indices = set()
     items = []
-    for food in foods:
+    for food_idx, food in enumerate(foods):
         name = food["text"].strip()
+        # 수량 매칭
         best_qty, best_dist = None, float("inf")
         for qty in qtys:
             d = abs(qty["start"] - food["end"])
@@ -155,5 +193,21 @@ def extract_food_items(text: str) -> list[dict]:
             qtys.remove(best_qty)
         else:
             quantity, unit = 1.0, "개"
-        items.append({"name": name, "quantity": quantity, "unit": unit, "category": get_category(name)})
+        # 날짜 매칭: 이 식재료와 다음 식재료 사이에 있는 날짜 탐색
+        next_food_start = foods[food_idx + 1]["start"] if food_idx + 1 < len(foods) else len(text)
+        consume_by_date = None
+        for i, date in enumerate(dates):
+            if i in used_date_indices:
+                continue
+            if food["end"] <= date["start"] < next_food_start:
+                consume_by_date = date["date"]
+                used_date_indices.add(i)
+                break
+        items.append({
+            "name": name,
+            "quantity": quantity,
+            "unit": unit,
+            "category": get_category(name),
+            "consumeByDate": consume_by_date,
+        })
     return items

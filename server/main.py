@@ -35,6 +35,7 @@ class FoodItem(BaseModel):
     quantity: float
     unit: str
     category: str
+    consumeByDate: str | None = None
 
 
 class STTResponse(BaseModel):
