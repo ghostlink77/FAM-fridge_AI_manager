@@ -48,6 +48,6 @@ String getDdayText(String consumeByDate) {
   if (daysLeft == -999) return '-';
 
   if (daysLeft < 0) return 'D+${-daysLeft}';
-  if (daysLeft == 0) return '만료';
+  if (daysLeft == 0) return 'D-day';
   return 'D-$daysLeft';
 }

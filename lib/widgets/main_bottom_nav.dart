@@ -19,9 +19,11 @@ class MainBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return BottomAppBar(
       height: 85,
-      color: Colors.white,
+      color: AppColors.surfaceDark,
       shape: const CircularNotchedRectangle(),
       notchMargin: 8.0,
+      surfaceTintColor: Colors.transparent,
+      elevation: 8,
       child: Row(
         children: [
           _buildTab(context, 0, Icons.calendar_month, '캘린더'),
@@ -34,29 +36,47 @@ class MainBottomNav extends StatelessWidget {
     );
   }
 
-  Widget _buildTab(BuildContext context, int index, IconData icon, String label){
+  Widget _buildTab(BuildContext context, int index, IconData icon, String label) {
     final isSelected = currentIndex == index;
-    final color = isSelected ? AppColors.primary : Colors.grey;
+    final color = isSelected ? AppColors.primaryDark : AppColors.warmBrown;
 
     return Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: Icon(icon, color: color),
-            onPressed: () {
-              if(currentIndex == index) return;
-
-              Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => _getPageForIndex(index),
-                  ),
-              );
-            },
-          ),
-          Text(label, style: TextStyle(fontSize: 10, color: color)),
-        ],
+      child: GestureDetector(
+        onTap: () {
+          if (currentIndex == index) return;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => _getPageForIndex(index),
+            ),
+          );
+        },
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 선택 인디케이터 바
+            Container(
+              width: 36,
+              height: 3,
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.primaryDark : Colors.transparent,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: color,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -78,6 +98,7 @@ class MainBottomNav extends StatelessWidget {
 
   static Widget buildFAB(BuildContext context, String userId) {
     return FloatingActionButton(
+      heroTag: 'fab_add',
       onPressed: () {
         Navigator.push(
           context,

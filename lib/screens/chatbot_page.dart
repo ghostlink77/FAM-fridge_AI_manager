@@ -68,24 +68,33 @@ class _ChatbotPageState extends State<ChatbotPage> {
       appBar: AppBar(
         title: const Text('레시피 챗봇'),
         automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-              onPressed: _clearChat,
-              tooltip: '새 대화',
-              icon: const Icon(Icons.refresh)
-          )
-        ],
       ),
       body: _isInitializing
         ? const Center(child: CircularProgressIndicator())
         : Column(
           children: [
             Expanded(
-              child: _messages.isEmpty
-                  ? const Center(
-                child: Text(
-                  '메시지를 입력해서 대화를 시작해보세요.\n예: 계란, 양파, 햄으로 할 수 있는 요리 추천해줘',
-                  textAlign: TextAlign.center,
+              child: _messages.isEmpty ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.restaurant_menu, size: 64, color: AppColors.primaryLight),
+                    const SizedBox(height: 16),
+                    Text(
+                      '레시피 챗봇에게 물어보세요!',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '예: 지금 내가 가진 재료로 할 수 있는 요리 추천해줘',
+                      style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               )
                   : ListView.builder(
@@ -103,8 +112,9 @@ class _ChatbotPageState extends State<ChatbotPage> {
                 child: Text('챗봇이 답변 작성 중...'),
               ),
             SafeArea(
-              child: Padding(
+              child: Container(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 36),
+                color: AppColors.background,
                 child: Row(
                   children: [
                     Expanded(
@@ -115,26 +125,37 @@ class _ChatbotPageState extends State<ChatbotPage> {
                         onSubmitted: (_) => _sendMessage(),
                         decoration: InputDecoration(
                           hintText: '메시지를 입력하세요',
+                          filled: true,
+                          fillColor: Colors.white,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(color: AppColors.surfaceDark),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(color: AppColors.surfaceDark),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(color: AppColors.primary),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
+                            horizontal: 16,
                             vertical: 10,
                           ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: _loading ? null : _sendMessage,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
-                        ),
+                    Container(
+                      decoration: const BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
                       ),
-                      child: const Text('전송'),
+                      child: IconButton(
+                        onPressed: _loading ? null : _sendMessage,
+                        icon: const Icon(Icons.send, color: Colors.white, size: 20),
+                      ),
                     ),
                   ],
                 ),
@@ -143,7 +164,13 @@ class _ChatbotPageState extends State<ChatbotPage> {
           ],
         ),
       bottomNavigationBar: MainBottomNav(currentIndex: 2, userId: widget.userId),
-      floatingActionButton: MainBottomNav.buildFAB(context, widget.userId),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'fab_new_chat',
+        onPressed: _confirmClearChat,
+        backgroundColor: AppColors.primaryDark,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.edit, color: Colors.white, size: 24),
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
@@ -290,26 +317,41 @@ class _ChatbotPageState extends State<ChatbotPage> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
         decoration: BoxDecoration(
-          color: isUser ? Colors.blue.shade100 : Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(16),
+          color: isUser ? AppColors.primaryDark : Colors.white,
+          border: isUser ? null : Border.all(color: AppColors.surfaceDark),
+          borderRadius: isUser
+              ? const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomLeft: Radius.circular(16),
+            bottomRight: Radius.circular(4),
+          )
+              : const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomLeft: Radius.circular(4),
+            bottomRight: Radius.circular(16),
+          ),
         ),
         child: isUser
-            ? Text(message.text, style: const TextStyle(fontSize: 15))
+            ? Text(
+          message.text,
+          style: const TextStyle(fontSize: 15, color: Colors.white),
+        )
             : Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             MarkdownBody(data: message.text),
-            // 냉장고 분석 카드
             if (message.analysis != null) ...[
               _buildAnalysisCard(message.analysis!),
             ],
-            // 레시피 추천 카드
-            if (message.recommendations != null && message.recommendations!.isNotEmpty) ...[
+            if (message.recommendations != null &&
+                message.recommendations!.isNotEmpty) ...[
               const SizedBox(height: 12),
               ...message.recommendations!.map((rec) => _buildRecipeCard(rec)),
             ],
-            // 재고 차감 버튼
-            if (message.ingredients != null && message.ingredients!.isNotEmpty) ...[
+            if (message.ingredients != null &&
+                message.ingredients!.isNotEmpty) ...[
               const SizedBox(height: 8),
               ElevatedButton.icon(
                 onPressed: () => _showDeductionDialog(message.ingredients!),
@@ -317,7 +359,10 @@ class _ChatbotPageState extends State<ChatbotPage> {
                 label: const Text('재고 차감'),
                 style: ElevatedButton.styleFrom(
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
               ),
             ],
@@ -345,7 +390,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.primaryLight),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
@@ -363,7 +408,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: AppColors.primary,
+                  color: Color(0xFFE65100),
               ),
             ),
             if (description.isNotEmpty) ...[
@@ -406,7 +451,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: Colors.orange.shade300),
+        border: Border.all(color: AppColors.primaryLight),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -434,7 +479,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
           if (expiringSoon.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Text('⏰ 7일 이내 만료',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.warning)),
             const SizedBox(height: 4),
             ...expiringSoon.map((e) => Text('  • $e', style: const TextStyle(fontSize: 13))),
           ],
@@ -788,5 +833,34 @@ class _ChatbotPageState extends State<ChatbotPage> {
       _messages.clear();
       _chat = _model!.startChat();
     });
+  }
+
+  Future<void> _confirmClearChat() async {
+    // 대화가 비어있으면 바로 리턴
+    if (_messages.isEmpty) return;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('새 대화'),
+          content: const Text('기존 대화를 초기화하고\n새 대화를 시작하시겠습니까?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('새 대화 시작'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == true) {
+      await _clearChat();
+    }
   }
 }

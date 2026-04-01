@@ -107,6 +107,15 @@ class _CalendarPageState extends State<CalendarPage> {
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
+                  defaultDecoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  weekendDecoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  outsideDecoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                 onDaySelected: (selectedDay, focusedDay) {
@@ -138,7 +147,7 @@ class _CalendarPageState extends State<CalendarPage> {
                             height: 7,
                             margin: const EdgeInsets.symmetric(horizontal: 1.5),
                             decoration: BoxDecoration(
-                              shape: BoxShape.circle,
+                              borderRadius: BorderRadius.circular(50),
                               color: getStatusColor(status),
                             ),
                           );
