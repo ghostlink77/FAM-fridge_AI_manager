@@ -233,8 +233,13 @@ class _ChatbotPageState extends State<ChatbotPage> {
     }
 
     // 3. 프롬프트 파일 읽기 + 재고 정보 삽입
+    final todayStr = '${now.year}년 ${now.month}월 ${now.day}일';
+
     final promptTemplate = await rootBundle.loadString('assets/chatbot_prompt.txt');
-    final prompt = promptTemplate.replaceAll('{INVENTORY}', inventoryText);
+    final prompt = promptTemplate
+        .replaceAll('{INVENTORY}', inventoryText)
+        .replaceAll('{USERNAME}', widget.userId)
+        .replaceAll('{DATE}', todayStr);
 
     _model = GenerativeModel(
       model: 'gemini-2.5-flash',
@@ -653,6 +658,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   ),
                   child: const Text('차감하기', style: TextStyle(color: Colors.white)),
                 ),
@@ -707,7 +713,10 @@ class _ChatbotPageState extends State<ChatbotPage> {
                     Navigator.pop(context);
                     await _discardItems(items);
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
                   child: const Text('폐기하기', style: TextStyle(color: Colors.white)),
                 ),
               ],
@@ -848,10 +857,16 @@ class _ChatbotPageState extends State<ChatbotPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
               child: const Text('취소'),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
               child: const Text('새 대화 시작'),
             ),
           ],

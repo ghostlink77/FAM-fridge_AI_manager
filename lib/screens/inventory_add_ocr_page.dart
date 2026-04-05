@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:image_picker/image_picker.dart';
@@ -26,12 +28,26 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
   XFile? _selectedImageFile;
   Uint8List? _imageBytes;
   bool _isProcessing = false;
+  List<String> _stateMessages = [
+    '이미지 분석 중...',
+    '상품명 추출 중...',
+    '소비기한 계산 중...',
+    '거의 완료되었습니다...',
+  ];
+  int _statusIndex = 0;
+  Timer? _statusTimer;
   List<Map<String, dynamic>> _parsedItems = [];
 
   XFile? _consumeByImageFile;
   Uint8List? _consumeByImageBytes;
   bool _isUploadingConsumeBy = false;
   List<String> _unmatchedDates = [];
+
+  @override
+  void dispose() {
+    _statusTimer?.cancel();
+    super.dispose();
+  }
 
   bool _isValidDateString(String? value) {
     if (value == null || value.trim().isEmpty) return false;
@@ -90,6 +106,14 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
 
     setState(() => _isProcessing = true);
 
+    _statusTimer = Timer.periodic(Duration(seconds: 3), (timer) {
+      if(_statusIndex < _stateMessages.length - 1) {
+        setState(() {
+          _statusIndex++;
+        });
+      }
+    });
+
     try {
       final imageBytes = await _selectedImageFile!.readAsBytes();
       final now = DateTime.now();
@@ -102,20 +126,9 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
         requestOptions: RequestOptions(apiVersion: 'v1'),
       );
 
-      final prompt = TextPart(
-        '이 영수증 이미지에서 구매한 식품의 상품명, 수량, 소비기한을 JSON 배열로 추출해줘.\n'
-        '형식: [{"name":"상품명","quantity":수량,"consumeByDate":"YYYY-MM-DD"}]\n'
-        '규칙:\n'
-        '- 봉투, 사무용품 등 식품이나 과자, 식자재가 아닌 항목은 제외\n'
-        '- 상품명과 수량 추출 필수\n'
-        '- 오늘 날짜는 $todayStr\n'
-        '- 각 상품의 예상 소비기한을 계산해서 YYYY-MM-DD 형식으로 consumeByDate에 넣기\n'
-        '- 소비기한 예상의 근거를 충분히 생각해 줘\n'
-        '- 소비기한 추정이 어려우면 consumeByDate를 null로 반환\n'
-        '- 수량이 명시되지 않으면 1로 설정\n'
-        '- 가격, 총액, 쿠폰, 매장명은 무시\n'
-        '- JSON 배열만 반환',
-      );
+      final promptTemplate = await rootBundle.loadString('assets/ocr_receipt_prompt.txt');
+      final promptText = promptTemplate.replaceAll('{TODAY}', todayStr);
+      final prompt = TextPart(promptText);
 
       final response = await model.generateContent([
         Content.multi([
@@ -155,13 +168,21 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
       setState(() {
         _parsedItems = items;
         _isProcessing = false;
+        _statusTimer?.cancel();
+        _statusTimer = null;
+        _statusIndex = 0;
       });
 
       if (items.isEmpty) {
         _showErrorMessage('상품 정보를 찾을 수 없습니다.');
       }
     } catch (e) {
-      setState(() => _isProcessing = false);
+      setState(() {
+        _isProcessing = false;
+        _statusTimer?.cancel();
+        _statusTimer = null;
+        _statusIndex = 0;
+      });
       _showErrorMessage('이미지 분석 실패: $e');
     }
   }
@@ -202,22 +223,9 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
         requestOptions: RequestOptions(apiVersion: 'v1'),
       );
 
-      final prompt = TextPart(
-        '이 이미지는 아래 상품들의 포장 사진입니다.\n'
-        '상품 목록: $namesJson\n\n'
-        '아래 형식의 JSON으로 반환해줘:\n'
-        '{\n'
-        '  "matched": {"상품명": "YYYY-MM-DD", ...},\n'
-        '  "unmatched": ["YYYY-MM-DD", ...]\n'
-        '}\n'
-        '규칙:\n'
-        '- 소비기한 또는 유통기한만 추출 (제조일 제외)\n'
-        '- 목록의 상품과 매칭되면 matched에, 매칭 안 되면 unmatched 배열에 포함\n'
-        '- 상품명이 완전히 같지 않아도 유사하면 matched로 처리\n'
-        '- 이미지에서 찾을 수 없는 상품은 matched에서 null로 설정\n'
-        '- 날짜는 반드시 YYYY-MM-DD 형식\n'
-        '- JSON만 반환',
-      );
+      final promptTemplate = await rootBundle.loadString('assets/ocr_consumeby_prompt.txt');
+      final promptText = promptTemplate.replaceAll('{PRODUCT_NAMES}', namesJson);
+      final prompt = TextPart(promptText);
 
       final response = await model.generateContent([
         Content.multi([
@@ -451,6 +459,27 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
     );
   }
 
+  Future<void> _pickDate(int index) async {
+    final currentDate = _parsedItems[index]['consumeByDate']?.toString() ?? '';
+    final initialDate = _isValidDateString(currentDate)
+        ? DateTime.parse(currentDate)
+        : DateTime.now().add(const Duration(days: 7));
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+    );
+
+    if (picked != null) {
+      setState(() {
+        _parsedItems[index]['consumeByDate'] =
+        '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -458,9 +487,21 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
         title: const Text('사진으로 재고 등록'),
       ),
       body: _isProcessing
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              const SizedBox(height: 18),
+              Text(
+                _stateMessages[_statusIndex],
+                style: TextStyle(fontSize: 20, color: AppColors.primaryDark),
+              ),
+            ]
+          ),
+        )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 40),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -481,11 +522,6 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
                           ? Image.memory(_imageBytes!, width: double.infinity, fit: BoxFit.cover)
                           : Image.file(File(_selectedImageFile!.path), width: double.infinity, fit: BoxFit.cover),
                     ),
-                    const SizedBox(height: 12),
-                    ElevatedButton(
-                      onPressed: _pickImageFromGallery,
-                      child: const Text('다른 이미지 선택'),
-                    ),
                   ],
                   if (_parsedItems.isNotEmpty) ...[
                     const SizedBox(height: 20),
@@ -497,33 +533,188 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
                       itemCount: _parsedItems.length,
                       itemBuilder: (context, index) {
                         final item = _parsedItems[index];
+                        final consumeByDate = item['consumeByDate']?.toString() ?? '';
+
                         return Card(
-                          child: ListTile(
-                            leading: Checkbox(
-                              value: item['selected'] as bool,
-                              onChanged: (value) {
-                                setState(() {
-                                  _parsedItems[index]['selected'] = value ?? false;
-                                });
-                              },
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            child: Row(
+                              children: [
+                                // 체크박스
+                                Checkbox(
+                                  value: item['selected'] as bool,
+                                  activeColor: AppColors.primary,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _parsedItems[index]['selected'] = value ?? false;
+                                    });
+                                  },
+                                ),
+                                // 내용 영역
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // 상품명
+                                      Text(
+                                        item['name']?.toString() ?? '',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          // 수량 편집
+                                          Text('수량: ', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                                          Container(
+                                            decoration: BoxDecoration(
+                                              border: Border.all(color: AppColors.surfaceDark),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                // 마이너스 버튼
+                                                InkWell(
+                                                  onTap: () {
+                                                    setState(() {
+                                                      final current = (item['quantity'] as num?) ?? 1;
+                                                      if (current > 1) {
+                                                        _parsedItems[index]['quantity'] = current - 1;
+                                                      }
+                                                    });
+                                                  },
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    child: Icon(Icons.remove, size: 16, color: AppColors.warmBrown),
+                                                  ),
+                                                ),
+                                                // 수량 표시
+                                                Container(
+                                                  constraints: const BoxConstraints(minWidth: 28),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                                  alignment: Alignment.center,
+                                                  child: Text(
+                                                    '${item['quantity'] ?? 1}',
+                                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                                  ),
+                                                ),
+                                                // 플러스 버튼
+                                                InkWell(
+                                                  onTap: () {
+                                                    setState(() {
+                                                      final current = (item['quantity'] as num?) ?? 1;
+                                                      _parsedItems[index]['quantity'] = current + 1;
+                                                    });
+                                                  },
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    child: Icon(Icons.add, size: 16, color: AppColors.warmBrown),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          // 소비기한 — 탭하면 DatePicker
+                                          Text('소비기한: ', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                                          GestureDetector(
+                                            onTap: () => _pickDate(index),
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 4,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                border: Border.all(color: AppColors.surfaceDark),
+                                                borderRadius: BorderRadius.circular(6),
+                                                color: consumeByDate.isNotEmpty
+                                                    ? AppColors.primaryPale
+                                                    : Colors.grey[100],
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    consumeByDate.isNotEmpty ? consumeByDate : '없음',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: consumeByDate.isNotEmpty
+                                                          ? AppColors.primaryDark
+                                                          : Colors.grey,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Icon(
+                                                    Icons.calendar_today,
+                                                    size: 14,
+                                                    color: AppColors.warmBrown,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                            title: Text(item['name']?.toString() ?? ''),
-                            subtitle: Text('수량: ${item['quantity']} / 소비기한: ${item['consumeByDate'] ?? '없음'}'),
                           ),
                         );
                       },
                     ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: _isUploadingConsumeBy ? null : _pickConsumeByImage,
-                      icon: _isUploadingConsumeBy
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
+                    const SizedBox(height: 16),
+                    GestureDetector(
+                      onTap: _isUploadingConsumeBy ? null : _pickConsumeByImage,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4CAF50).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            _isUploadingConsumeBy
+                                ? const SizedBox(
+                              width: 40, height: 40,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.document_scanner),
-                      label: Text(_consumeByImageFile == null ? '소비기한 이미지 선택' : '다른 이미지로 재분석'),
+                                : Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4CAF50).withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.document_scanner, size: 24, color: Color(0xFF4CAF50)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _consumeByImageFile == null ? '소비기한 이미지 인식' : '다른 이미지로 재분석',
+                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    '포장지 사진으로 소비기한을 자동 매칭',
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right, color: Colors.grey),
+                          ],
+                        ),
+                      ),
                     ),
                     if (_consumeByImageFile != null) ...[
                       const SizedBox(height: 8),
@@ -560,8 +751,29 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: _saveSelectedItems,
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                        child: const Text('선택한 항목 저장', style: TextStyle(color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                        ),
+                        child: const Text(
+                            '선택한 항목 저장',
+                            style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: _pickImageFromGallery,
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.primary),
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                        ),
+                        child: const Text(
+                          '다른 이미지로 다시 분석',
+                          style: TextStyle(color: AppColors.primary, fontSize: 16),
+                        ),
                       ),
                     ),
                   ],
@@ -573,4 +785,5 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
+
 }

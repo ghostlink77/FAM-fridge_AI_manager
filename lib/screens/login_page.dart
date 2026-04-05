@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import 'login_success_page.dart';
 import 'sign_up_page.dart';
@@ -91,7 +92,9 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('로그인'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: AppColors.textPrimary,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -100,10 +103,10 @@ class _LoginPageState extends State<LoginPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 60),
-              const Text(
+              Text(
                 '로그인',
-                style: TextStyle(
-                  fontSize: 32,
+                style: GoogleFonts.jua(
+                  fontSize: 36,
                   fontWeight: FontWeight.bold,
                 ),
               ),

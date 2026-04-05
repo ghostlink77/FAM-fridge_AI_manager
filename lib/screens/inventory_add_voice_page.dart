@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -241,7 +240,7 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
           'registrationDate': registrationDate,
           if (item.consumeByDate != null) 'consumeByDate': item.consumeByDate,
           if (item.consumeByDate != null) 'consumeByDates': [item.consumeByDate],
-          'addedAt': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
           'source': 'voice',
         });
       }

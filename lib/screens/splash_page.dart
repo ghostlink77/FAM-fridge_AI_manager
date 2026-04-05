@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'login_page.dart';
 import 'sign_up_page.dart';
 import '../theme/app_colors.dart';
@@ -34,21 +35,23 @@ class SplashPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.kitchen,
-              size: 80,
-              color: AppColors.primary
+            Image.asset(
+              'assets/fam_logo.png',
+              width: 320,
+              height: 320,
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'FAM : Fridge AI Manager',
-              style: TextStyle(
+              style: GoogleFonts.fredoka(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
+                color: AppColors.primaryDark,
               ),
             ),
             const SizedBox(height: 8),
@@ -65,7 +68,7 @@ class SplashPage extends StatelessWidget {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => _goToSignUp(context),
+                  onPressed: () => _goToLogin(context),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -73,7 +76,7 @@ class SplashPage extends StatelessWidget {
                     ),
                   ),
                   child: const Text(
-                    '회원가입',
+                    '로그인',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -88,21 +91,21 @@ class SplashPage extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 32.0),
               child: SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _goToLogin(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[300],
+                child: OutlinedButton(
+                  onPressed: () => _goToSignUp(context),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.primary),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   child: const Text(
-                    '로그인',
+                    '회원가입',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black,
+                      color: AppColors.primary,
                     ),
                   ),
                 ),

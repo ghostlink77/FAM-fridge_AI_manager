@@ -27,9 +27,14 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            const SizedBox(height: 40),
+            const SizedBox(height: 20),
             // 직접 입력 버튼
-            GestureDetector(
+            _buildMethodCard(
+              icon: Icons.edit_note,
+              title: '직접 입력',
+              subtitle: '식품명, 수량, 소비기한을 직접 입력',
+              iconColor: const Color(0xFF4CAF50),
+              iconBgColor: const Color(0xFF4CAF50).withValues(alpha: 0.12),
               onTap: () {
                 Navigator.push(
                   context,
@@ -39,37 +44,15 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
                   ),
                 );
               },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  border: Border.all(color: AppColors.primary, width: 2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.edit,
-                      size: 40,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      '직접 입력',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             // 사진 등록 버튼
-            GestureDetector(
+            _buildMethodCard(
+              icon: Icons.camera_alt,
+              title: '사진 등록',
+              subtitle: '영수증 사진으로 자동 인식',
+              iconColor: const Color(0xFF2196F3),
+              iconBgColor: const Color(0xFF2196F3).withValues(alpha: 0.12),
               onTap: () {
                 Navigator.push(
                   context,
@@ -79,37 +62,15 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
                   ),
                 );
               },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  border: Border.all(color: AppColors.primary, width: 2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.camera_alt,
-                      size: 40,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      '사진 등록',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             // 음성 등록 버튼
-            GestureDetector(
+            _buildMethodCard(
+              icon: Icons.mic,
+              title: '음성 등록',
+              subtitle: '음성으로 등록',
+              iconColor: const Color(0xFF9C27B0),
+              iconBgColor: const Color(0xFF9C27B0).withValues(alpha: 0.12),
               onTap: () {
                 Navigator.push(
                   context,
@@ -119,33 +80,6 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
                   ),
                 );
               },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  border: Border.all(color: AppColors.primary, width: 2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.mic,
-                      size: 40,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      '음성 등록',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
@@ -153,6 +87,75 @@ class _InventoryAddSelectionPageState extends State<InventoryAddSelectionPage> {
       bottomNavigationBar: MainBottomNav(currentIndex: 1, userId: widget.userId),
       floatingActionButton: MainBottomNav.buildFAB(context, widget.userId),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+    );
+  }
+
+  Widget _buildMethodCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color iconColor,
+    required Color iconBgColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.surfaceDark),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 32, color: iconColor),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

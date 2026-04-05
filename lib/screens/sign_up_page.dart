@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -104,7 +104,9 @@ class _SignUpPageState extends State<SignUpPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('회원가입'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: AppColors.textPrimary,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -113,11 +115,10 @@ class _SignUpPageState extends State<SignUpPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 40),
-              const Text(
+              Text(
                 '새 계정 만들기',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
+                style: GoogleFonts.jua(
+                  fontSize: 35,
                 ),
               ),
               const SizedBox(height: 40),
