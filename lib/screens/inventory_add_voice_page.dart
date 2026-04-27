@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import '../services/voice_api_service.dart';
 import '../theme/app_colors.dart';
@@ -103,8 +104,7 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
   Future<void> _pickAudioFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['m4a', 'mp3', 'wav', 'aac', 'ogg', 'webm', 'flac'],
+        type: FileType.audio,
         withData: true, // 웹에서 바이트 데이터를 가져오기 위해 필요
       );
       if (result != null && result.files.single.bytes != null) {
@@ -141,13 +141,16 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
         return;
       }
 
+      final dir = await getTemporaryDirectory();
+      final filePath = '${dir.path}/voice_record_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
       await _audioRecorder.start(
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
           bitRate: 128000,
           sampleRate: 44100,
         ),
-        path: 'voice_record_${DateTime.now().millisecondsSinceEpoch}.m4a',
+        path: filePath,
       );
 
       setState(() {

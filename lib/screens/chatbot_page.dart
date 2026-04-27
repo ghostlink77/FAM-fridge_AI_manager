@@ -7,6 +7,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import '../theme/app_colors.dart';
 import '../widgets/main_bottom_nav.dart';
+import '../models/chat_message.dart';
+import '../widgets/chat/recipe_card.dart';
+import '../widgets/chat/analysis_card.dart';
+import '../widgets/chat/message_bubble.dart';
+import '../widgets/chat/deduction_dialog.dart';
+import '../widgets/chat/discard_dialog.dart';
 
 class ChatbotPage extends StatefulWidget {
   final String userId;
@@ -14,29 +20,6 @@ class ChatbotPage extends StatefulWidget {
 
   @override
   State<ChatbotPage> createState() => _ChatbotPageState();
-}
-
-class ChatMessage {
-  final String role; // "user" or "assistant"
-  final String text;
-  final List<Map<String, dynamic>>? ingredients;      // 재고 차감용
-  final List<Map<String, dynamic>>? recommendations;  // 레시피 추천 카드용
-  final Map<String, dynamic>? analysis;               // 냉장고 분석
-
-  ChatMessage({
-    required this.role,
-    required this.text,
-    this.ingredients,
-    this.recommendations,
-    this.analysis,
-  });
-
-  Map<String, dynamic> toMap() {
-    return {
-      'role': role,
-      'text': text,
-    };
-  }
 }
 
 class _ChatbotPageState extends State<ChatbotPage> {
@@ -102,7 +85,18 @@ class _ChatbotPageState extends State<ChatbotPage> {
                 padding: const EdgeInsets.all(12),
                 itemCount: _messages.length,
                 itemBuilder: (context, index) {
-                  return _buildMessageBubble(_messages[index]);
+                  final message = _messages[index];
+                  return MessageBubble(
+                    message: message,
+                    onRecipeTap: (name) {
+                      _messageController.text = '$name 레시피 알려줘';
+                      _sendMessage();
+                    },
+                    onDiscardTap: (items) => _showDiscardDialog(items),
+                    onDeductTap: (ingredients, mealName, nutrition){
+                      _showDeductionDialog(ingredients, mealName: mealName, nutrition: nutrition);
+                    },
+                  );
                 },
               ),
             ),
@@ -264,6 +258,8 @@ class _ChatbotPageState extends State<ChatbotPage> {
       List<Map<String, dynamic>>? ingredients;
       List<Map<String, dynamic>>? recommendations;
       Map<String, dynamic>? analysis;
+      String? mealName;
+      Map<String, dynamic>? nutrition;
 
       if (role == 'assistant') {
         if (text.contains('---INGREDIENTS---')) {
@@ -271,8 +267,23 @@ class _ChatbotPageState extends State<ChatbotPage> {
           displayText = parts[0].trim();
           final jsonPart = parts[1].split('---END_INGREDIENTS---')[0].trim();
           try {
-            final parsed = jsonDecode(jsonPart) as List;
-            ingredients = parsed.map((e) => Map<String, dynamic>.from(e)).toList();
+            final parsed = jsonDecode(jsonPart);
+            if (parsed is Map<String, dynamic>) {
+              // 새 형식: {"mealName":"...", "items":[...]}
+              mealName = parsed['mealName'] as String?;
+              final items = parsed['items'] as List;
+              ingredients = items.map((e) => Map<String, dynamic>.from(e)).toList();
+            } else if (parsed is List) {
+              // 이전 형식 호환: [{"name":"...", ...}]
+              ingredients = parsed.map((e) => Map<String, dynamic>.from(e)).toList();
+            }
+          } catch (_) {}
+        }
+        if (text.contains('---NUTRITION---')) {
+          final nParts = text.split('---NUTRITION---');
+          final jsonPart = nParts[1].split('---END_NUTRITION---')[0].trim();
+          try {
+            nutrition = Map<String, dynamic>.from(jsonDecode(jsonPart));
           } catch (_) {}
         }
         if (displayText.contains('---RECOMMENDATIONS---')) {
@@ -297,7 +308,9 @@ class _ChatbotPageState extends State<ChatbotPage> {
       _messages.add(ChatMessage(
           role: role,
           text: displayText,
+          mealName: mealName,
           ingredients: ingredients,
+          nutrition: nutrition,
           recommendations: recommendations,
           analysis: analysis
       ));
@@ -310,198 +323,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
     setState(() {
       _isInitializing = false;
     });
-  }
-
-  Widget _buildMessageBubble(ChatMessage message) {
-    final isUser = message.role == 'user';
-
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
-        decoration: BoxDecoration(
-          color: isUser ? AppColors.primaryDark : Colors.white,
-          border: isUser ? null : Border.all(color: AppColors.surfaceDark),
-          borderRadius: isUser
-              ? const BorderRadius.only(
-            topLeft: Radius.circular(16),
-            topRight: Radius.circular(16),
-            bottomLeft: Radius.circular(16),
-            bottomRight: Radius.circular(4),
-          )
-              : const BorderRadius.only(
-            topLeft: Radius.circular(16),
-            topRight: Radius.circular(16),
-            bottomLeft: Radius.circular(4),
-            bottomRight: Radius.circular(16),
-          ),
-        ),
-        child: isUser
-            ? Text(
-          message.text,
-          style: const TextStyle(fontSize: 15, color: Colors.white),
-        )
-            : Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            MarkdownBody(data: message.text),
-            if (message.analysis != null) ...[
-              _buildAnalysisCard(message.analysis!),
-            ],
-            if (message.recommendations != null &&
-                message.recommendations!.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              ...message.recommendations!.map((rec) => _buildRecipeCard(rec)),
-            ],
-            if (message.ingredients != null &&
-                message.ingredients!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              ElevatedButton.icon(
-                onPressed: () => _showDeductionDialog(message.ingredients!),
-                icon: const Icon(Icons.remove_shopping_cart, size: 16),
-                label: const Text('재고 차감'),
-                style: ElevatedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecipeCard(Map<String, dynamic> rec) {
-    final name = rec['name'] ?? '';
-    final description = rec['description'] ?? '';
-    final timeMin = rec['timeMin'];
-    final difficulty = rec['difficulty'] ?? '';
-
-    return GestureDetector(
-      onTap: () {
-        // 카드 탭하면 자동으로 레시피 요청
-        _messageController.text = '$name 레시피 알려줘';
-        _sendMessage();
-      },
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: AppColors.primaryLight),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              name,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                  color: Color(0xFFE65100),
-              ),
-            ),
-            if (description.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-              ),
-            ],
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                if (timeMin != null) ...[
-                  Icon(Icons.timer, size: 14, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text('$timeMin분', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                  const SizedBox(width: 12),
-                ],
-                if (difficulty.isNotEmpty) ...[
-                  Icon(Icons.signal_cellular_alt, size: 14, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(difficulty, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                ],
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnalysisCard(Map<String, dynamic> analysis) {
-    final expired = List<String>.from(analysis['expired'] ?? []);
-    final expiringSoon = List<String>.from(analysis['expiringSoon'] ?? []);
-    final tips = List<String>.from(analysis['tips'] ?? []);
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: AppColors.primaryLight),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 소비기한 지난 재료
-          if (expired.isNotEmpty) ...[
-            const Text('⚠️ 소비기한 지남',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-            const SizedBox(height: 4),
-            ...expired.map((e) => Text('  • $e', style: const TextStyle(fontSize: 13))),
-            const SizedBox(height: 8),
-            ElevatedButton.icon(
-              onPressed: () => _showDiscardDialog(expired),
-              icon: const Icon(Icons.delete_outline, size: 16),
-              label: const Text('폐기 처리'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-            ),
-          ],
-          // 7일 이내 만료
-          if (expiringSoon.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            const Text('⏰ 7일 이내 만료',
-                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.warning)),
-            const SizedBox(height: 4),
-            ...expiringSoon.map((e) => Text('  • $e', style: const TextStyle(fontSize: 13))),
-          ],
-          // 분석 팁
-          if (tips.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            const Text('💡 분석',
-                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-            const SizedBox(height: 4),
-            ...tips.map((e) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text('• $e', style: const TextStyle(fontSize: 13)),
-            )),
-          ],
-        ],
-      ),
-    );
   }
 
   Future<void> _sendMessage() async {
@@ -525,6 +346,8 @@ class _ChatbotPageState extends State<ChatbotPage> {
       String displayText = reply;
       List<Map<String, dynamic>>? ingredients;
       List<Map<String, dynamic>>? recommendations;
+      String? mealName;
+      Map<String, dynamic>? nutrition;
 
       // 재고 차감용 재료 JSON 파싱
       if (reply.contains('---INGREDIENTS---')) {
@@ -532,11 +355,23 @@ class _ChatbotPageState extends State<ChatbotPage> {
         displayText = parts[0].trim();
         final jsonPart = parts[1].split('---END_INGREDIENTS---')[0].trim();
         try {
-          final parsed = jsonDecode(jsonPart) as List;
-          ingredients = parsed.map((e) => Map<String, dynamic>.from(e)).toList();
+          final parsed = jsonDecode(jsonPart);
+          if (parsed is Map<String, dynamic>) {
+            mealName = parsed['mealName'] as String?;
+            final items = parsed['items'] as List;
+            ingredients = items.map((e) => Map<String, dynamic>.from(e)).toList();
+          } else if (parsed is List) {
+            ingredients = parsed.map((e) => Map<String, dynamic>.from(e)).toList();
+          }
         } catch (_) {}
       }
-
+      if (reply.contains('---NUTRITION---')) {
+        final nParts = reply.split('---NUTRITION---');
+        final jsonPart = nParts[1].split('---END_NUTRITION---')[0].trim();
+        try {
+          nutrition = Map<String, dynamic>.from(jsonDecode(jsonPart));
+        } catch (_) {}
+      }
       // 레시피 추천 카드 JSON 파싱
       if (displayText.contains('---RECOMMENDATIONS---')) {
         final parts = displayText.split('---RECOMMENDATIONS---');
@@ -563,6 +398,8 @@ class _ChatbotPageState extends State<ChatbotPage> {
         _messages.add(ChatMessage(
           role: 'assistant',
           text: displayText,
+          mealName: mealName,
+          nutrition: nutrition,
           ingredients: ingredients,
           recommendations: recommendations,
           analysis: analysis,
@@ -591,140 +428,26 @@ class _ChatbotPageState extends State<ChatbotPage> {
     });
   }
 
-  Future<void> _showDeductionDialog(List<Map<String, dynamic>> ingredients) async {
-    final items = ingredients.map((e) => {
-      'name': e['name'],
-      'quantity': e['quantity'] ?? 1,
-      'unit': e['unit'] ?? '개',
-      'selected': true,
-    }).toList();
-
-    await showDialog(
+  Future<void> _showDeductionDialog(List<Map<String, dynamic>> ingredients, {String? mealName, Map<String, dynamic>? nutrition}) async {
+    final result = await showDialog<List<Map<String, dynamic>>>(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('재고 차감'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    return Row(
-                      children: [
-                        Checkbox(
-                          value: item['selected'] as bool,
-                          onChanged: (val) {
-                            setDialogState(() {
-                              items[index]['selected'] = val ?? false;
-                            });
-                          },
-                          activeColor: AppColors.primary,
-                        ),
-                        Expanded(
-                          child: Text('${item['name']}'),
-                        ),
-                        SizedBox(
-                          width: 60,
-                          child: TextFormField(
-                            initialValue: '${item['quantity']}',
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              suffixText: '${item['unit']}',
-                              isDense: true,
-                            ),
-                            onChanged: (val) {
-                              items[index]['quantity'] = double.tryParse(val) ?? 1;
-                            },
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('취소'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    await _deductInventory(items);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                  child: const Text('차감하기', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) => DeductionDialog(ingredients: ingredients),
     );
+
+    if(result != null){
+      await _deductInventory(result, mealName: mealName ?? '기타', nutrition: nutrition);
+    }
   }
 
   Future<void> _showDiscardDialog(List<String> expiredItems) async {
-    final items = expiredItems.map((name) => {
-      'name': name,
-      'selected': true,
-    }).toList();
-
-    await showDialog(
+    final result = await showDialog<List<Map<String, dynamic>>>(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('폐기 처리'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    return CheckboxListTile(
-                      value: item['selected'] as bool,
-                      title: Text('${item['name']}'),
-                      activeColor: Colors.red,
-                      onChanged: (val) {
-                        setDialogState(() {
-                          items[index]['selected'] = val ?? false;
-                        });
-                      },
-                    );
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('취소'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    await _discardItems(items);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                  child: const Text('폐기하기', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) => DiscardDialog(expiredItems: expiredItems),
     );
+
+    if(result != null){
+      await _discardItems(result);
+    }
   }
 
   Future<void> _discardItems(List<Map<String, dynamic>> items) async {
@@ -765,7 +488,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
     }
   }
 
-  Future<void> _deductInventory(List<Map<String, dynamic>> items) async {
+  Future<void> _deductInventory(List<Map<String, dynamic>> items, {String mealName = '직접 입력', Map<String, dynamic>? nutrition}) async {
     final selectedItems = items.where((e) => e['selected'] == true).toList();
     if (selectedItems.isEmpty) return;
 
@@ -797,10 +520,29 @@ class _ChatbotPageState extends State<ChatbotPage> {
         }
       }
 
+      // 식사 기록 저장
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .collection('meal_records')
+          .add({
+        'mealName': mealName,
+        'ingredients': selectedItems.map((e) => {
+          'name': e['name'],
+          'quantity': e['quantity'],
+          'unit': e['unit'] ?? '개',
+        }).toList(),
+        'mealTime': FieldValue.serverTimestamp(),
+        'mealType': _getMealType(),
+        'nutrition': nutrition,
+        'source': 'chatbot',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('재고가 차감되었습니다.'),
+          SnackBar(
+            content: Text('재고가 차감되었습니다. 식사 기록: $mealName (${_getMealType()})'),
             backgroundColor: Colors.green,
           ),
         );
@@ -815,6 +557,14 @@ class _ChatbotPageState extends State<ChatbotPage> {
         );
       }
     }
+  }
+
+  String _getMealType() {
+    final hour = DateTime.now().hour;
+    if (hour >= 6 && hour < 10) return 'breakfast';
+    if (hour >= 11 && hour < 14) return 'lunch';
+    if (hour >= 17 && hour < 21) return 'dinner';
+    return 'snack';
   }
 
   void _scrollToBottom() {

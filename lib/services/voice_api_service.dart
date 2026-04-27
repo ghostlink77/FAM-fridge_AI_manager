@@ -16,13 +16,18 @@ class VoiceApiService {
   // 로컬 테스트 시: 'http://10.0.2.2:8000' (Android 에뮬레이터)
   //                'http://localhost:8000' (Chrome 웹)
   //                'http://PC의IP:8000' (실제 기기)
-  static const String _baseUrl = 'http://localhost:8000';
+  static const String _baseUrl = 'https://unpoeticized-unstrident-dalene.ngrok-free.dev';
+
+  static const Map<String, String> _ngrokHeaders = {
+    'ngrok-skip-browser-warning': 'true',
+  };
 
   /// 서버가 살아있는지 확인
   Future<bool> healthCheck() async {
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/health'),
+        headers: _ngrokHeaders,
       ).timeout(const Duration(seconds: 5));
       return response.statusCode == 200;
     } catch (e) {
@@ -38,6 +43,7 @@ class VoiceApiService {
     try {
       final uri = Uri.parse('$_baseUrl/api/stt');
       final request = http.MultipartRequest('POST', uri);
+      request.headers.addAll(_ngrokHeaders);
 
       // 바이트로 파일 첨부 (웹에서도 동작)
       request.files.add(
@@ -94,7 +100,10 @@ class VoiceApiService {
     try {
       final response = await http.post(
         Uri.parse('$_baseUrl/api/ner'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          ..._ngrokHeaders,
+        },
         body: jsonEncode({'text': text}),
       ).timeout(const Duration(seconds: 15));
 
