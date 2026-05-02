@@ -3,6 +3,7 @@ import '../screens/calendar_page.dart';
 import '../screens/inventory_list_page.dart';
 import '../screens/inventory_add_selection_page.dart';
 import '../screens/chatbot_page.dart';
+import '../screens/consumption_pattern_page.dart';
 import '../theme/app_colors.dart';
 
 class MainBottomNav extends StatelessWidget {
@@ -90,7 +91,7 @@ class MainBottomNav extends StatelessWidget {
       case 2:
         return ChatbotPage(userId: userId);
       case 3:
-        return InventoryListPage(userId: userId);
+        return ConsumptionPatternPage(userId: userId);
       default:
         return InventoryListPage(userId: userId);
     }
