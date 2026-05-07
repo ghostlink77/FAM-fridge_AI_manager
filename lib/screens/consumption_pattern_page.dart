@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/main_bottom_nav.dart';
 import '../theme/app_colors.dart';
 import 'manual_meal_record_page.dart';
+import 'meal_calendar_page.dart';
 
 class ConsumptionPatternPage extends StatefulWidget {
   final String userId;
@@ -364,7 +365,12 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
                 Expanded(
                   child: GestureDetector(
                     onTap: () {
-                      // TODO: 식사 캘린더 화면으로 이동
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MealCalendarPage(userId: widget.userId),
+                        ),
+                      );
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 20),
