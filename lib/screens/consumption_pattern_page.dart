@@ -25,6 +25,9 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
   double _avgProtein = 0;
   double _avgCarbs = 0;
   double _avgFat = 0;
+  // 폐기 현황 (최근 30일)
+  int _recentDiscardCount = 0;
+  List<MapEntry<String, int>> _topDiscardedItems = [];
   bool _isLoading = true;
 
   @override
@@ -69,6 +72,26 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
       }
     }
 
+    // 폐기 기록 로딩 (최근 30일)
+    final cutoff = DateTime.now().subtract(const Duration(days: 30));
+    final discardSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.userId)
+        .collection('discard_records')
+        .where('discardedAt', isGreaterThan: Timestamp.fromDate(cutoff))
+        .get();
+
+    // 식재료 이름별 폐기 횟수 집계
+    final Map<String, int> nameCount = {};
+    for (var doc in discardSnapshot.docs) {
+      final name = doc.data()['name'] as String? ?? '알 수 없음';
+      nameCount[name] = (nameCount[name] ?? 0) + 1;
+    }
+    // 빈도 내림차순 정렬 후 상위 3개만
+    final sortedDiscards = nameCount.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final topDiscards = sortedDiscards.take(3).toList();
+
     setState(() {
       _totalMeals = totalMeals;
       _mealTypeCounts = mealTypeCounts;
@@ -78,6 +101,8 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
         _avgCarbs = totalCarbs / nutritionCount;
         _avgFat = totalFat / nutritionCount;
       }
+      _recentDiscardCount = discardSnapshot.docs.length;
+      _topDiscardedItems = topDiscards;
       _isLoading = false;
     });
   }
@@ -261,10 +286,64 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
                   Text('식재료 폐기 현황',
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.primaryDark)),
                   const SizedBox(height: 12),
-                  Center(
-                    child: Text('폐기 기록이 아직 없습니다',
-                        style: TextStyle(fontSize: 12, color: AppColors.warmBrown)),
-                  ),
+                  if (_recentDiscardCount == 0)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text('폐기 기록이 아직 없습니다',
+                            style: TextStyle(fontSize: 12, color: AppColors.warmBrown)),
+                      ),
+                    )
+                  else ...[
+                    // 최근 30일 폐기 건수
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('최근 30일 폐기',
+                            style: TextStyle(fontSize: 12, color: AppColors.warmBrown)),
+                        Text('$_recentDiscardCount건',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.primaryDark)),
+                      ],
+                    ),
+                    if (_topDiscardedItems.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Divider(height: 1, color: AppColors.surfaceDark),
+                      const SizedBox(height: 12),
+                      Text('자주 버려지는 식재료',
+                          style: TextStyle(fontSize: 12, color: AppColors.warmBrown)),
+                      const SizedBox(height: 8),
+                      // TOP 3 항목을 순회하며 행으로 렌더링
+                      ...List.generate(_topDiscardedItems.length, (i) {
+                        final entry = _topDiscardedItems[i];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Row(
+                            children: [
+                              Text('${i + 1}.',
+                                  style: TextStyle(fontSize: 12, color: AppColors.warmBrown)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(entry.key,
+                                    style: TextStyle(fontSize: 13, color: AppColors.primaryDark)),
+                              ),
+                              Text('${entry.value}회',
+                                  style: TextStyle(fontSize: 12, color: AppColors.warmBrown)),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryPale,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text('💡 다음 구매 시 분량을 줄여보세요',
+                            style: TextStyle(fontSize: 11, color: AppColors.primaryDark)),
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),
@@ -397,7 +476,7 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
                             child: Icon(Icons.calendar_month, color: Colors.white, size: 24),
                           ),
                           const SizedBox(height: 10),
-                          Text('요리 기록 캘린더',
+                          Text('식사 기록 캘린더',
                               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.primaryDark)),
                           const SizedBox(height: 2),
                           Text('날짜별 식사 기록 확인',

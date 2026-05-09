@@ -459,12 +459,24 @@ class _ChatbotPageState extends State<ChatbotPage> {
           .collection('users')
           .doc(widget.userId)
           .collection('inventory');
+      final discardRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .collection('discard_records');
       final snapshot = await inventoryRef.get();
 
       for (var item in selectedItems) {
         final itemName = item['name'] as String;
         for (var doc in snapshot.docs) {
-          if (doc.data()['name'] == itemName) {
+          final data = doc.data();
+          if (data['name'] == itemName) {
+            // 1) 폐기 기록 저장: inventory 원본 필드 전부 복사 + 폐기 메타데이터 2개 추가
+            final record = Map<String, dynamic>.from(data);
+            record['discardedAt'] = FieldValue.serverTimestamp();
+            record['reason'] = 'expired';
+            await discardRef.add(record);
+
+            // 2) 기록 저장이 성공해야 인벤토리에서 삭제 (실패 시 catch로 빠져 데이터 보존)
             await doc.reference.delete();
             break;
           }

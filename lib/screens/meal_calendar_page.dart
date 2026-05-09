@@ -19,10 +19,10 @@ class _MealCalendarPageState extends State<MealCalendarPage> {
   /// 식사 종류별 색상 매핑 (DB에 저장된 영어 키 사용)
   /// (breakfast=노랑, lunch=주황, dinner=빨강, snack=보라)
   static const Map<String, Color> _mealTypeColors = {
-    'breakfast': Color(0xFFFFC107), // 앰버
-    'lunch': Color(0xFFFF9800),     // 오렌지
-    'dinner': Color(0xFFE53935),    // 레드
-    'snack': Color(0xFF7E57C2),     // 퍼플
+    'breakfast': Color(0xFFFFC107),
+    'lunch': Color(0xFFFF9800),
+    'dinner': Color(0xFFE53935),
+    'snack': Color(0xFF7E57C2),
   };
 
   /// 화면 표시용 한국어 라벨
@@ -42,7 +42,7 @@ class _MealCalendarPageState extends State<MealCalendarPage> {
   };
 
   /// Firestore 문서들을 날짜별로 그룹화
-  /// 키: DateTime(연,월,일) - UTC 자정 기준
+  /// 키: DateTime(연,월,일)
   /// 값: 그날의 식사 기록 리스트 (시간대 순으로 정렬됨)
   Map<DateTime, List<Map<String, dynamic>>> _groupByDate(QuerySnapshot? snapshot) {
     final map = <DateTime, List<Map<String, dynamic>>>{};
@@ -236,7 +236,7 @@ class _MealCalendarPageState extends State<MealCalendarPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('요리 기록 캘린더'),
+        title: const Text('식사 기록 캘린더'),
         backgroundColor: AppColors.primaryDark,
         foregroundColor: Colors.white,
       ),
