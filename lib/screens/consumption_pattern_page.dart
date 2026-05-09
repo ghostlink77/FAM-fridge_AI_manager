@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 import '../widgets/main_bottom_nav.dart';
 import '../theme/app_colors.dart';
 import 'manual_meal_record_page.dart';
@@ -28,6 +31,9 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
   // 폐기 현황 (최근 30일)
   int _recentDiscardCount = 0;
   List<MapEntry<String, int>> _topDiscardedItems = [];
+  // AI 식습관 피드백
+  String? _aiFeedback;
+  bool _isFeedbackLoading = false;
   bool _isLoading = true;
 
   @override
@@ -105,6 +111,117 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
       _topDiscardedItems = topDiscards;
       _isLoading = false;
     });
+
+    // 데이터 로딩 끝나면 AI 피드백 캐시 확인 및 필요 시 갱신
+    // (식사 기록 3건 미만이면 호출하지 않음)
+    if (totalMeals >= 3) {
+      _ensureFeedback();
+    }
+  }
+
+  /// 캐시를 확인하고 필요하면 새로 호출. 비동기로 백그라운드 실행.
+  /// 무효 조건: (1) 캐시 없음 (2) 24시간 경과 (3) 식사 5건 이상 추가됨
+  Future<void> _ensureFeedback() async {
+    final feedbackRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.userId)
+        .collection('ai_feedback')
+        .doc('latest');
+
+    final cacheDoc = await feedbackRef.get();
+
+    bool needsRefresh = false;
+    if (!cacheDoc.exists) {
+      needsRefresh = true;
+    } else {
+      final data = cacheDoc.data()!;
+      final generatedAt = (data['generatedAt'] as Timestamp?)?.toDate();
+      final basedOnMealCount = (data['basedOnMealCount'] as num?)?.toInt() ?? 0;
+
+      // generatedAt이 null이면(서버 타임스탬프가 아직 안 박혔으면) 캐시는 유효한 것으로 간주
+      final isOlderThan24h = generatedAt != null &&
+          DateTime.now().difference(generatedAt).inHours >= 24;
+      final hasEnoughNewMeals = _totalMeals >= basedOnMealCount + 5;
+
+      if (isOlderThan24h || hasEnoughNewMeals) {
+        needsRefresh = true;
+      } else {
+        // 캐시 유효 → 그대로 표시
+        setState(() {
+          _aiFeedback = data['feedback'] as String?;
+        });
+        return;
+      }
+    }
+
+    if (needsRefresh) {
+      await _generateFeedback(feedbackRef);
+    }
+  }
+
+  /// Gemini API 호출 → Firestore에 저장 → 화면에 반영.
+  /// 실패 시 캐시 저장하지 않음(즉시 재시도 가능).
+  Future<void> _generateFeedback(DocumentReference feedbackRef) async {
+    setState(() {
+      _isFeedbackLoading = true;
+    });
+
+    try {
+      // 1) 프롬프트 템플릿 로드
+      final template = await rootBundle.loadString('assets/feedback_prompt.txt');
+
+      // 2) TOP_DISCARDS 문자열 빌드 (예: "양배추(3회), 두부(2회)")
+      final topDiscardsStr = _topDiscardedItems.isEmpty
+          ? '없음'
+          : _topDiscardedItems
+              .map((e) => '${e.key}(${e.value}회)')
+              .join(', ');
+
+      // 3) placeholder 치환
+      final prompt = template
+          .replaceAll('{TOTAL_MEALS}', '$_totalMeals')
+          .replaceAll('{BREAKFAST}', '${_mealTypeCounts['breakfast'] ?? 0}')
+          .replaceAll('{LUNCH}', '${_mealTypeCounts['lunch'] ?? 0}')
+          .replaceAll('{DINNER}', '${_mealTypeCounts['dinner'] ?? 0}')
+          .replaceAll('{SNACK}', '${_mealTypeCounts['snack'] ?? 0}')
+          .replaceAll('{CALORIES}', _avgCalories.toStringAsFixed(0))
+          .replaceAll('{PROTEIN}', _avgProtein.toStringAsFixed(0))
+          .replaceAll('{CARBS}', _avgCarbs.toStringAsFixed(0))
+          .replaceAll('{FAT}', _avgFat.toStringAsFixed(0))
+          .replaceAll('{DISCARD_COUNT}', '$_recentDiscardCount')
+          .replaceAll('{TOP_DISCARDS}', topDiscardsStr);
+
+      // 4) Gemini 호출 (단일 generateContent, ChatSession 불필요)
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash',
+        apiKey: dotenv.env['GEMINI_API_KEY'] ?? '',
+      );
+      final response = await model.generateContent([Content.text(prompt)]);
+      final text = response.text?.trim();
+
+      if (text == null || text.isEmpty) {
+        throw Exception('Empty response from Gemini');
+      }
+
+      // 5) Firestore 캐시 저장 (성공 시에만)
+      await feedbackRef.set({
+        'feedback': text,
+        'generatedAt': FieldValue.serverTimestamp(),
+        'basedOnMealCount': _totalMeals,
+      });
+
+      if (!mounted) return;
+      setState(() {
+        _aiFeedback = text;
+        _isFeedbackLoading = false;
+      });
+    } catch (e) {
+      // 실패: 캐시 저장 안 함, _aiFeedback은 null 유지 → UI에서 에러 분기로 빠짐
+      if (!mounted) return;
+      setState(() {
+        _isFeedbackLoading = false;
+      });
+    }
   }
 
   Widget build(BuildContext context) {
@@ -380,7 +497,9 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
                         Text(
                           _totalMeals < 3
                               ? '식사 기록이 3건 이상 쌓이면 AI가 식습관을 분석해드립니다.'
-                              : 'AI 피드백을 불러오는 중...',
+                              : _isFeedbackLoading
+                                  ? 'AI가 식습관을 분석 중입니다...'
+                                  : (_aiFeedback ?? '지금은 피드백을 불러올 수 없습니다. 잠시 후 다시 시도해주세요.'),
                           style: TextStyle(fontSize: 12, color: AppColors.warmBrown, height: 1.5),
                         ),
                       ],

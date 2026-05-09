@@ -73,6 +73,7 @@ flutter:
   assets:
     - .env
     - assets/chatbot_prompt.txt
+    - assets/feedback_prompt.txt
     - assets/ocr_receipt_prompt.txt
     - assets/ocr_consumeby_prompt.txt
     - assets/fam_logo.png
