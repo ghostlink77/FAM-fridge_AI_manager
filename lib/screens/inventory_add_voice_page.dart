@@ -222,33 +222,65 @@ class _InventoryAddVoicePageState extends State<InventoryAddVoicePage> {
     if (_extractedItems.isEmpty) return;
 
     try {
-      final batch = FirebaseFirestore.instance.batch();
+      final inventoryRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .collection('inventory');
 
+      final today = DateTime.now();
+      final registrationDate =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+      // 직접입력/OCR과 동일한 병합 정책:
+      // - 이름 + 소비기한이 같으면 기존 문서에 quantity 합산
+      // - 소비기한이 없는 항목(음성에서 종종 발생)은 병합하지 않고 항상 새 문서로 추가
+      //   (where('consumeByDate', isEqualTo: null) 매칭 모호성 회피)
+      // 음성 항목은 보통 소수라 batch 대신 순차 처리해도 성능 영향 미미
       for (final item in _extractedItems) {
-        final docRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc(widget.userId)
-            .collection('inventory')
-            .doc();
+        final consumeByDate = item.consumeByDate;
+        // item.quantity는 model에서 num 타입으로 강제되므로 toDouble() 직접 호출
+        final quantity = item.quantity.toDouble();
 
-        final today = DateTime.now();
-        final registrationDate =
-            '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+        if (consumeByDate != null) {
+          // 소비기한이 있을 때만 병합 시도
+          final existingSnapshot = await inventoryRef
+              .where('name', isEqualTo: item.name)
+              .where('consumeByDate', isEqualTo: consumeByDate)
+              .limit(1)
+              .get();
 
-        batch.set(docRef, {
+          if (existingSnapshot.docs.isNotEmpty) {
+            final existingDoc = existingSnapshot.docs.first;
+            final existingData = existingDoc.data();
+            final existingQuantityRaw = existingData['quantity'];
+            final existingQuantity = existingQuantityRaw is num
+                ? existingQuantityRaw.toDouble()
+                : double.tryParse(existingQuantityRaw?.toString() ?? '0') ?? 0.0;
+
+            await existingDoc.reference.update({
+              'quantity': existingQuantity + quantity,
+              'registrationDate': registrationDate,
+              'consumeByDate': consumeByDate,
+              'consumeByDates': [consumeByDate],
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+            continue; // 다음 항목으로
+          }
+        }
+
+        // 신규 추가 (소비기한 없는 케이스 또는 매칭되는 기존 문서 없음)
+        await inventoryRef.add({
           'name': item.name,
-          'quantity': item.quantity,
+          'quantity': quantity,
           'unit': item.unit,
           'category': item.category,
           'registrationDate': registrationDate,
-          if (item.consumeByDate != null) 'consumeByDate': item.consumeByDate,
-          if (item.consumeByDate != null) 'consumeByDates': [item.consumeByDate],
-          'createdAt': FieldValue.serverTimestamp(),
+          if (consumeByDate != null) 'consumeByDate': consumeByDate,
+          if (consumeByDate != null) 'consumeByDates': [consumeByDate],
           'source': 'voice',
+          'createdAt': FieldValue.serverTimestamp(),
         });
       }
-
-      await batch.commit();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

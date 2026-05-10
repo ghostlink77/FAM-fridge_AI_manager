@@ -54,32 +54,6 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
     return DateTime.tryParse(value.trim()) != null;
   }
 
-  List<String> _extractConsumeByDates(dynamic consumeByDatesRaw, dynamic consumeByDateRaw) {
-    final dates = <String>[];
-
-    if (consumeByDatesRaw is List) {
-      for (final date in consumeByDatesRaw) {
-        final text = date?.toString().trim();
-        if (_isValidDateString(text)) {
-          dates.add(text!);
-        }
-      }
-    }
-
-    final singleDate = consumeByDateRaw?.toString().trim();
-    if (_isValidDateString(singleDate)) {
-      dates.add(singleDate!);
-    }
-
-    return dates.toSet().toList()..sort();
-  }
-
-  String _getEarliestConsumeByDate(List<String> dates) {
-    if (dates.isEmpty) return '';
-    final sorted = [...dates]..sort();
-    return sorted.first;
-  }
-
   Future<void> _pickImageFromGallery() async {
     try {
       final image = await _picker.pickImage(
@@ -303,7 +277,10 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
       final defaultConsumeByStr =
           '${defaultConsumeBy.year}-${defaultConsumeBy.month.toString().padLeft(2, '0')}-${defaultConsumeBy.day.toString().padLeft(2, '0')}';
 
-      final mergedByName = <String, Map<String, dynamic>>{};
+      // 키: "이름|소비기한" — 같은 영수증 안에서도 소비기한이 다르면 별도 항목
+      // 소비기한 없는 항목은 defaultConsumeByStr 적용
+      // 소수점 수량 보존 위해 double 사용
+      final mergedByKey = <String, Map<String, dynamic>>{};
 
       for (final item in selectedItems) {
         final rawName = (item['name'] ?? '').toString().trim();
@@ -311,35 +288,34 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
 
         final quantityRaw = item['quantity'];
         final quantity = quantityRaw is num
-            ? quantityRaw.toInt()
-            : int.tryParse(quantityRaw.toString()) ?? 1;
+            ? quantityRaw.toDouble()
+            : double.tryParse(quantityRaw.toString()) ?? 1.0;
 
         final consumeByFromItem = item['consumeByDate']?.toString();
-        final itemConsumeByDates = <String>[];
-        if (_isValidDateString(consumeByFromItem)) {
-          itemConsumeByDates.add(consumeByFromItem!.trim());
-        }
+        final itemConsumeBy = _isValidDateString(consumeByFromItem)
+            ? consumeByFromItem!.trim()
+            : defaultConsumeByStr;
 
-        final current = mergedByName.putIfAbsent(rawName, () {
+        final mergeKey = '$rawName|$itemConsumeBy';
+        final current = mergedByKey.putIfAbsent(mergeKey, () {
           return {
-            'quantity': 0,
-            'consumeByDates': <String>[],
+            'name': rawName,
+            'consumeByDate': itemConsumeBy,
+            'quantity': 0.0,
           };
         });
-
-        current['quantity'] = (current['quantity'] as int) + quantity;
-        (current['consumeByDates'] as List<String>).addAll(itemConsumeByDates);
+        current['quantity'] = (current['quantity'] as double) + quantity;
       }
 
-      for (final entry in mergedByName.entries) {
-        final name = entry.key;
-        final quantityToAdd = entry.value['quantity'] as int;
-        final newDatesRaw =
-            (entry.value['consumeByDates'] as List<String>).toSet().toList()..sort();
-        final newDates = newDatesRaw.isEmpty ? [defaultConsumeByStr] : newDatesRaw;
+      for (final entry in mergedByKey.entries) {
+        final name = entry.value['name'] as String;
+        final consumeByDate = entry.value['consumeByDate'] as String;
+        final quantityToAdd = entry.value['quantity'] as double;
 
+        // 병합 조건: 이름 + 소비기한 둘 다 일치
         final existingSnapshot = await userInventoryRef
             .where('name', isEqualTo: name)
+            .where('consumeByDate', isEqualTo: consumeByDate)
             .limit(1)
             .get();
 
@@ -347,36 +323,29 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
           final existingDoc = existingSnapshot.docs.first;
           final existingData = existingDoc.data();
 
+          // 소수점 보존
           final existingQuantityRaw = existingData['quantity'];
           final existingQuantity = existingQuantityRaw is num
-              ? existingQuantityRaw.toInt()
-              : int.tryParse(existingQuantityRaw?.toString() ?? '0') ?? 0;
-
-          final existingDates = _extractConsumeByDates(
-            existingData['consumeByDates'],
-            existingData['consumeByDate'],
-          );
-
-          final mergedDates = {...existingDates, ...newDates}.toList()..sort();
-          final earliestDate = _getEarliestConsumeByDate(mergedDates);
+              ? existingQuantityRaw.toDouble()
+              : double.tryParse(existingQuantityRaw?.toString() ?? '0') ?? 0.0;
 
           batch.update(existingDoc.reference, {
             'quantity': existingQuantity + quantityToAdd,
             'registrationDate': registrationDate,
-            'consumeByDate': earliestDate,
-            'consumeByDates': mergedDates,
+            'consumeByDate': consumeByDate,
+            'consumeByDates': [consumeByDate],
             'updatedAt': FieldValue.serverTimestamp(),
           });
         } else {
           final docRef = userInventoryRef.doc();
-          final earliestDate = _getEarliestConsumeByDate(newDates);
 
           batch.set(docRef, {
             'name': name,
             'quantity': quantityToAdd,
             'registrationDate': registrationDate,
-            'consumeByDate': earliestDate,
-            'consumeByDates': newDates,
+            'consumeByDate': consumeByDate,
+            'consumeByDates': [consumeByDate],
+            'source': 'ocr',
             'createdAt': FieldValue.serverTimestamp(),
           });
         }
@@ -386,7 +355,7 @@ class _InventoryAddOcrPageState extends State<InventoryAddOcrPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${mergedByName.length}개 항목이 등록되었습니다.')),
+          SnackBar(content: Text('${mergedByKey.length}개 항목이 등록되었습니다.')),
         );
         Navigator.pop(context);
       }

@@ -38,32 +38,6 @@ class _InventoryAddInputPageState extends State<InventoryAddInputPage> {
     super.dispose();
   }
 
-  List<String> _extractConsumeByDates(dynamic consumeByDatesRaw, dynamic consumeByDateRaw) {
-    final dates = <String>[];
-
-    if (consumeByDatesRaw is List) {
-      for (final date in consumeByDatesRaw) {
-        final text = date?.toString().trim();
-        if (text != null && DateTime.tryParse(text) != null) {
-          dates.add(text);
-        }
-      }
-    }
-
-    final singleDate = consumeByDateRaw?.toString().trim();
-    if (singleDate != null && DateTime.tryParse(singleDate) != null) {
-      dates.add(singleDate);
-    }
-
-    return dates.toSet().toList()..sort();
-  }
-
-  String _getEarliestConsumeByDate(List<String> dates) {
-    if (dates.isEmpty) return '';
-    final sorted = [...dates]..sort();
-    return sorted.first;
-  }
-
   Future<void> _selectDate(BuildContext context, TextEditingController controller) async {
     final picked = await showDatePicker(
       context: context,
@@ -89,10 +63,14 @@ class _InventoryAddInputPageState extends State<InventoryAddInputPage> {
       final name = _nameController.text.trim();
       final consumeByDate = _consumeByDateController.text.trim();
       final registrationDate = _registrationDateController.text.trim();
-      final quantity = int.parse(_quantityController.text);
+      // 소수점 수량 허용 (레시피 차감 시 1/4개 같은 케이스 대응)
+      final quantity = double.parse(_quantityController.text);
 
+      // 병합 조건: 이름 + 소비기한 둘 다 일치하는 경우에만 합침
+      // (3일 전 산 대파와 오늘 산 대파를 합치지 않기 위함)
       final existingSnapshot = await userInventoryRef
           .where('name', isEqualTo: name)
+          .where('consumeByDate', isEqualTo: consumeByDate)
           .limit(1)
           .get();
 
@@ -100,23 +78,19 @@ class _InventoryAddInputPageState extends State<InventoryAddInputPage> {
         final existingDoc = existingSnapshot.docs.first;
         final existingData = existingDoc.data();
 
+        // 소수점 보존: toDouble() 사용 (이전엔 toInt()로 잘려서 0.75 등 손실)
         final existingQuantityRaw = existingData['quantity'];
         final existingQuantity = existingQuantityRaw is num
-            ? existingQuantityRaw.toInt()
-            : int.tryParse(existingQuantityRaw?.toString() ?? '0') ?? 0;
+            ? existingQuantityRaw.toDouble()
+            : double.tryParse(existingQuantityRaw?.toString() ?? '0') ?? 0.0;
 
-        final existingDates = _extractConsumeByDates(
-          existingData['consumeByDates'],
-          existingData['consumeByDate'],
-        );
-        final mergedDates = {...existingDates, consumeByDate}.toList()..sort();
-        final earliestDate = _getEarliestConsumeByDate(mergedDates);
-
+        // 소비기한이 동일하므로 mergedDates는 항상 [consumeByDate] 한 개짜리
+        // (consumeByDates 필드는 캘린더/목록 페이지가 읽으므로 형태 유지)
         await existingDoc.reference.update({
           'quantity': existingQuantity + quantity,
           'registrationDate': registrationDate,
-          'consumeByDate': earliestDate,
-          'consumeByDates': mergedDates,
+          'consumeByDate': consumeByDate,
+          'consumeByDates': [consumeByDate],
           'updatedAt': FieldValue.serverTimestamp(),
         });
       } else {
@@ -126,6 +100,7 @@ class _InventoryAddInputPageState extends State<InventoryAddInputPage> {
           'consumeByDates': [consumeByDate],
           'registrationDate': registrationDate,
           'quantity': quantity,
+          'source': 'manual',
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
