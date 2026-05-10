@@ -262,7 +262,7 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
                     ),
                     child: Column(
                       children: [
-                        Text('총 식사 횟수',
+                        Text('최근 30일 동안 총 식사 횟수',
                             style: TextStyle(fontSize: 11, color: AppColors.warmBrown)),
                         const SizedBox(height: 4),
                         Text('$_totalMeals회',

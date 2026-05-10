@@ -314,7 +314,7 @@ class _ManualMealRecordPageState extends State<ManualMealRecordPage> {
               childAspectRatio: 2.5,
               children: [
                 _buildMealTypeButton('breakfast', '아침', '6:00 ~ 10:00'),
-                _buildMealTypeButton('lunch', '점심', '11:00 ~ 14:00'),
+                _buildMealTypeButton('lunch', '점심', '11:00 ~ 17:00'),
                 _buildMealTypeButton('dinner', '저녁', '17:00 ~ 21:00'),
                 _buildMealTypeButton('snack', '야식', '21:00 ~ 6:00'),
               ],
