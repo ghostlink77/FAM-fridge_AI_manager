@@ -481,13 +481,14 @@ class _InventoryListPageState extends State<InventoryListPage>
     }
   }
 
-  Future<void> _showDeleteDialog(BuildContext context, InventoryItem item) async {
+  /// "소비" 액션 — 다 먹었거나 잘못 등록한 항목 제거 (폐기 기록 X)
+  Future<void> _showConsumeDialog(BuildContext context, InventoryItem item) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('재고 삭제'),
-          content: const Text('재고에서 상품을 제거하시겠습니까?'),
+          title: const Text('재고 소비 처리'),
+          content: Text('${item.name}을(를) 다 먹은 것으로 처리하고 재고에서 제거할까요?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -495,8 +496,8 @@ class _InventoryListPageState extends State<InventoryListPage>
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('삭제'),
+              style: TextButton.styleFrom(foregroundColor: Colors.green),
+              child: const Text('소비 처리'),
             ),
           ],
         );
@@ -508,25 +509,72 @@ class _InventoryListPageState extends State<InventoryListPage>
     }
   }
 
+  /// "폐기" 액션 — 폐기 기록 남기고 재고에서 제거. 폐기 분석에 반영됨
+  Future<void> _showDiscardDialog(BuildContext context, InventoryItem item) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('재고 폐기 처리'),
+          content: Text(
+            '${item.name}을(를) 폐기 처리할까요?\n\n폐기 기록은 소비패턴 분석에 반영됩니다.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('폐기'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == true && context.mounted) {
+      await _discardInventoryItem(item);
+    }
+  }
+
   Future<void> _showItemActionDialog(InventoryItem item) async {
+    // AlertDialog의 actions 영역은 한 줄에 가로 배치 — 4개 버튼은 좁아 보일 수 있어
+    // content에 ListTile 형태로 두고 actions에는 취소만 두는 패턴이 더 깔끔함
     final action = await showDialog<String>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text(item.name),
+          // contentPadding으로 ListTile 좌우 여백 확보
+          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('수정'),
+                onTap: () => Navigator.of(context).pop('edit'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.restaurant_outlined, color: Colors.green),
+                title: const Text('소비'),
+                subtitle: const Text('이미 다 먹었거나 사용했어요'),
+                onTap: () => Navigator.of(context).pop('consume'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('폐기'),
+                subtitle: const Text('상해서 버려요 (분석에 반영됨)'),
+                onTap: () => Navigator.of(context).pop('discard'),
+              ),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop('cancel'),
               child: const Text('취소'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop('edit'),
-              child: const Text('수정'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop('delete'),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('삭제'),
             ),
           ],
         );
@@ -538,11 +586,19 @@ class _InventoryListPageState extends State<InventoryListPage>
       return;
     }
 
-    if (action == 'delete') {
-      await _showDeleteDialog(context, item);
+    if (action == 'consume') {
+      // 소비: 단순 삭제 (discard_records 기록 없음, 이전과 동일 동작)
+      await _showConsumeDialog(context, item);
+      return;
+    }
+
+    if (action == 'discard') {
+      // 폐기: 확인 다이얼로그 → discard_records 기록 + 삭제
+      await _showDiscardDialog(context, item);
     }
   }
 
+  /// 소비 처리: 단순 삭제. 폐기 기록 X (사용자가 다 먹었거나 잘못 등록한 케이스)
   Future<void> _deleteInventoryItem(InventoryItem item) async {
     try {
       await FirebaseFirestore.instance
@@ -555,7 +611,7 @@ class _InventoryListPageState extends State<InventoryListPage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('재고가 삭제되었습니다.'),
+            content: Text('소비 처리되었습니다.'),
             duration: Duration(seconds: 2),
           ),
         );
@@ -564,7 +620,67 @@ class _InventoryListPageState extends State<InventoryListPage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('삭제 실패: $e'),
+            content: Text('소비 처리 실패: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  /// 폐기 처리: discard_records에 기록 + inventory에서 삭제
+  /// 챗봇의 _discardItems와 동일한 패턴 — 기록 저장 성공 후 삭제 (실패 시 데이터 보존)
+  /// reason='manual'로 박아서 챗봇 자동 폐기('expired')와 구분
+  Future<void> _discardInventoryItem(InventoryItem item) async {
+    try {
+      final inventoryDocRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .collection('inventory')
+          .doc(item.id);
+
+      // 1) 원본 문서 데이터를 통째로 읽음 — discard_records에 그대로 복사하기 위함
+      final docSnapshot = await inventoryDocRef.get();
+      if (!docSnapshot.exists) {
+        // 이미 삭제된 항목 (다른 디바이스에서 처리됐을 수 있음)
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('이미 처리된 항목입니다.')),
+          );
+        }
+        return;
+      }
+      final data = docSnapshot.data()!;
+
+      // 2) discard_records에 기록 (원본 필드 + 폐기 메타데이터 2개)
+      final record = Map<String, dynamic>.from(data);
+      record['discardedAt'] = FieldValue.serverTimestamp();
+      record['reason'] = 'manual'; // 챗봇 자동 폐기('expired')와 구분
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .collection('discard_records')
+          .add(record);
+
+      // 3) 기록 저장 성공 후에 인벤토리에서 삭제
+      await inventoryDocRef.delete();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('폐기 처리되었습니다.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('폐기 실패: $e'),
+            backgroundColor: Colors.red,
             duration: const Duration(seconds: 2),
           ),
         );
