@@ -116,9 +116,10 @@ class _ChatbotPageState extends State<ChatbotPage> {
                       _messageController.text = '$name 레시피 알려줘';
                       _sendMessage();
                     },
-                    onDiscardTap: (items) => _showDiscardDialog(items),
-                    onDeductTap: (ingredients, mealName, nutrition){
-                      _showDeductionDialog(ingredients, mealName: mealName, nutrition: nutrition);
+                    // messageId가 추가된 시그니처 — 다이얼로그 핸들러로 그대로 전달
+                    onDiscardTap: (messageId, items) => _showDiscardDialog(messageId, items),
+                    onDeductTap: (messageId, ingredients, mealName, nutrition) {
+                      _showDeductionDialog(messageId, ingredients, mealName: mealName, nutrition: nutrition);
                     },
                   );
                 },
@@ -347,13 +348,17 @@ class _ChatbotPageState extends State<ChatbotPage> {
       }
 
       _messages.add(ChatMessage(
+          id: doc.id,
           role: role,
           text: displayText,
           mealName: mealName,
           ingredients: ingredients,
           nutrition: nutrition,
           recommendations: recommendations,
-          analysis: analysis
+          analysis: analysis,
+          // 기존 문서에 필드 없을 수 있음(이전 데이터 호환). null이면 false 처리.
+          isDeducted: data['isDeducted'] == true,
+          isDiscarded: data['isDiscarded'] == true,
       ));
 
       history.add(Content(role == 'assistant' ? 'model' : 'user', [TextPart(text)]));
@@ -364,17 +369,29 @@ class _ChatbotPageState extends State<ChatbotPage> {
     setState(() {
       _isInitializing = false;
     });
+
+    // ListView가 빌드된 후에 스크롤 컨트롤러가 attached됨
+    // → setState 끝나고 한 프레임 더 기다린 다음 맨 아래로 점프
+    // (애니메이션 없이 즉시 이동: 진입 시 위→아래 스르륵 흐르는 게 어색함)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      });
+    });
   }
 
   Future<void> _sendMessage() async {
     final userMessage = _messageController.text.trim();
     if (userMessage.isEmpty || _loading) return;
 
+    final userMsg = ChatMessage(role: 'user', text: userMessage);
     setState(() {
-      _messages.add(ChatMessage(role: 'user', text: userMessage));
+      _messages.add(userMsg);
       _loading = true;
     });
-    _saveChatMessage('user', userMessage);
+    // 저장 후 받은 doc id를 메시지에 세팅 (사용자 메시지는 차감/폐기 없지만 일관성 유지)
+    _saveChatMessage('user', userMessage).then((id) => userMsg.id = id);
 
     _messageController.clear();
     _scrollToBottom();
@@ -435,8 +452,12 @@ class _ChatbotPageState extends State<ChatbotPage> {
         } catch (_) {}
       }
 
+      // 어시스턴트 메시지: 저장 → doc id 받기 → ChatMessage에 id 세팅 → setState로 추가
+      // 순서가 중요: id 없는 상태로 화면에 그려졌다가 id 박히면 buton 콜백이 id로 메시지를 못 찾을 수 있음
+      final assistantId = await _saveChatMessage('assistant', reply);
       setState(() {
         _messages.add(ChatMessage(
+          id: assistantId,
           role: 'assistant',
           text: displayText,
           mealName: mealName,
@@ -446,7 +467,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
           analysis: analysis,
         ));
       });
-      _saveChatMessage('assistant', reply);
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(role: 'assistant', text: '오류가 발생했습니다.\n$e'));
@@ -457,8 +477,10 @@ class _ChatbotPageState extends State<ChatbotPage> {
     }
   }
 
-  Future<void> _saveChatMessage(String role, String text) async{
-    await FirebaseFirestore.instance
+  /// 메시지 저장. 호출 측에서 반환된 doc id를 ChatMessage.id에 세팅하면
+  /// 추후 차감/폐기 시 같은 문서를 update 할 수 있다.
+  Future<String> _saveChatMessage(String role, String text) async {
+    final docRef = await FirebaseFirestore.instance
         .collection('users')
         .doc(widget.userId)
         .collection('chat_messages')
@@ -466,34 +488,69 @@ class _ChatbotPageState extends State<ChatbotPage> {
       'role': role,
       'text': text,
       'createdAt': FieldValue.serverTimestamp(),
+      // 새 메시지는 항상 false로 시작
+      'isDeducted': false,
+      'isDiscarded': false,
     });
+    return docRef.id;
   }
 
-  Future<void> _showDeductionDialog(List<Map<String, dynamic>> ingredients, {String? mealName, Map<String, dynamic>? nutrition}) async {
+  Future<void> _showDeductionDialog(String? messageId, List<Map<String, dynamic>> ingredients, {String? mealName, Map<String, dynamic>? nutrition}) async {
     final result = await showDialog<List<Map<String, dynamic>>>(
       context: context,
       builder: (_) => DeductionDialog(ingredients: ingredients),
     );
 
     if(result != null){
-      await _deductInventory(result, mealName: mealName ?? '기타', nutrition: nutrition);
+      // _deductInventory 가 실제 차감 성공 여부를 bool로 반환 → 성공일 때만 메시지 플래그 갱신
+      final ok = await _deductInventory(result, mealName: mealName ?? '기타', nutrition: nutrition);
+      if (ok && messageId != null) {
+        await _markMessageActionDone(messageId, field: 'isDeducted');
+      }
     }
   }
 
-  Future<void> _showDiscardDialog(List<String> expiredItems) async {
+  Future<void> _showDiscardDialog(String? messageId, List<String> expiredItems) async {
     final result = await showDialog<List<Map<String, dynamic>>>(
       context: context,
       builder: (_) => DiscardDialog(expiredItems: expiredItems),
     );
 
     if(result != null){
-      await _discardItems(result);
+      final ok = await _discardItems(result);
+      if (ok && messageId != null) {
+        await _markMessageActionDone(messageId, field: 'isDiscarded');
+      }
     }
   }
 
-  Future<void> _discardItems(List<Map<String, dynamic>> items) async {
+  /// 메시지의 액션 플래그(isDeducted/isDiscarded)를 true로 마킹.
+  /// - 메모리상의 ChatMessage 객체 갱신 (즉시 UI 반영)
+  /// - Firestore 문서도 update (앱 재진입 시에도 유지)
+  Future<void> _markMessageActionDone(String messageId, {required String field}) async {
+    // 1) 메모리 갱신 — 같은 id의 메시지 찾아 플래그 true로
+    final idx = _messages.indexWhere((m) => m.id == messageId);
+    if (idx >= 0) {
+      setState(() {
+        if (field == 'isDeducted') _messages[idx].isDeducted = true;
+        if (field == 'isDiscarded') _messages[idx].isDiscarded = true;
+      });
+    }
+    // 2) Firestore 갱신 — 실패해도 메모리 상태는 유지 (다음 진입 시 재시도되지 않으니 미세한 손실 가능하나 발표 범위 OK)
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .collection('chat_messages')
+          .doc(messageId)
+          .update({field: true});
+    } catch (_) {}
+  }
+
+  /// 반환값: 폐기가 실제로 진행됐으면 true, 사용자가 아무것도 선택 안 했거나 에러나면 false
+  Future<bool> _discardItems(List<Map<String, dynamic>> items) async {
     final selectedItems = items.where((e) => e['selected'] == true).toList();
-    if (selectedItems.isEmpty) return;
+    if (selectedItems.isEmpty) return false;
 
     try {
       final inventoryRef = FirebaseFirestore.instance
@@ -532,18 +589,21 @@ class _ChatbotPageState extends State<ChatbotPage> {
           ),
         );
       }
+      return true;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('폐기 실패: $e'), backgroundColor: Colors.red),
         );
       }
+      return false;
     }
   }
 
-  Future<void> _deductInventory(List<Map<String, dynamic>> items, {String mealName = '직접 입력', Map<String, dynamic>? nutrition}) async {
+  /// 반환값: 차감이 실제로 진행됐으면 true, 사용자가 아무것도 선택 안 했거나 에러나면 false
+  Future<bool> _deductInventory(List<Map<String, dynamic>> items, {String mealName = '직접 입력', Map<String, dynamic>? nutrition}) async {
     final selectedItems = items.where((e) => e['selected'] == true).toList();
-    if (selectedItems.isEmpty) return;
+    if (selectedItems.isEmpty) return false;
 
     try {
       final inventoryRef = FirebaseFirestore.instance
@@ -600,6 +660,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
           ),
         );
       }
+      return true;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -609,13 +670,14 @@ class _ChatbotPageState extends State<ChatbotPage> {
           ),
         );
       }
+      return false;
     }
   }
 
   String _getMealType() {
     final hour = DateTime.now().hour;
     if (hour >= 6 && hour < 10) return 'breakfast';
-    if (hour >= 11 && hour < 14) return 'lunch';
+    if (hour >= 11 && hour < 17) return 'lunch';
     if (hour >= 17 && hour < 21) return 'dinner';
     return 'snack';
   }

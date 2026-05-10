@@ -3,12 +3,18 @@ import '../../theme/app_colors.dart';
 
 class AnalysisCard extends StatelessWidget {
   final Map<String, dynamic> analysis;
-  final Function(List<String> expiredItems) onDiscardTap;
+  // messageId 추가 — message_bubble로부터 받아 onDiscardTap 호출 시 그대로 위로 전달
+  final String? messageId;
+  final Function(String? messageId, List<String> expiredItems) onDiscardTap;
+  // 이 메시지에서 이미 폐기 처리됐는지 (true면 버튼 비활성화)
+  final bool isDiscarded;
 
   const AnalysisCard({
     super.key,
     required this.analysis,
+    this.messageId,
     required this.onDiscardTap,
+    this.isDiscarded = false,
   });
 
   @override
@@ -37,12 +43,18 @@ class AnalysisCard extends StatelessWidget {
             ...expired.map((e) => Text('  • $e', style: const TextStyle(fontSize: 13))),
             const SizedBox(height: 8),
             ElevatedButton.icon(
-              onPressed: () => onDiscardTap(expired),
-              icon: const Icon(Icons.delete_outline, size: 16),
-              label: const Text('폐기 처리'),
+              // 이미 폐기 처리됐으면 비활성화 + 회색 톤 + "폐기됨" 라벨
+              onPressed: isDiscarded ? null : () => onDiscardTap(messageId, expired),
+              icon: Icon(
+                isDiscarded ? Icons.check_circle_outline : Icons.delete_outline,
+                size: 16,
+              ),
+              label: Text(isDiscarded ? '폐기됨' : '폐기 처리'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.surfaceDark,
+                disabledForegroundColor: AppColors.warmBrown,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
             ),

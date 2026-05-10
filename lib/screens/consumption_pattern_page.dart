@@ -281,7 +281,7 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
                     ),
                     child: Column(
                       children: [
-                        Text('일평균 칼로리',
+                        Text('일평균 칼로리(추정치)',
                             style: TextStyle(fontSize: 11, color: Colors.green[800])),
                         const SizedBox(height: 4),
                         Text('${_avgCalories.round()}kcal',

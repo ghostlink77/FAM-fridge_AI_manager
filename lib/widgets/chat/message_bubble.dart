@@ -8,8 +8,9 @@ import 'analysis_card.dart';
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final Function(String recipeName) onRecipeTap;
-  final Function(List<String> expiredItems) onDiscardTap;
-  final Function(List<Map<String, dynamic>> ingredients, String? mealName, Map<String, dynamic>? nutrition) onDeductTap;
+  // messageId가 추가됨 — 차감/폐기 후 어느 메시지의 버튼이 눌렸는지 chatbot_page가 식별 가능
+  final Function(String? messageId, List<String> expiredItems) onDiscardTap;
+  final Function(String? messageId, List<Map<String, dynamic>> ingredients, String? mealName, Map<String, dynamic>? nutrition) onDeductTap;
 
   const MessageBubble({
     super.key,
@@ -58,7 +59,9 @@ class MessageBubble extends StatelessWidget {
             if (message.analysis != null) ...[
               AnalysisCard(
                   analysis: message.analysis!,
-                  onDiscardTap: onDiscardTap),
+                  messageId: message.id,
+                  onDiscardTap: onDiscardTap,
+                  isDiscarded: message.isDiscarded),
             ],
             if (message.recommendations != null &&
                 message.recommendations!.isNotEmpty) ...[
@@ -70,12 +73,22 @@ class MessageBubble extends StatelessWidget {
             if (message.ingredients != null &&
                 message.ingredients!.isNotEmpty) ...[
               const SizedBox(height: 8),
+              // 차감 완료 후엔 onPressed: null + 회색 톤 + "차감됨" 라벨
+              // (버튼을 숨기지 않고 흔적을 남겨 사용자에게 상태를 명시)
               ElevatedButton.icon(
-                onPressed: () => onDeductTap(message.ingredients!, message.mealName, message.nutrition),
-                icon: const Icon(Icons.remove_shopping_cart, size: 16),
-                label: const Text('재고 차감'),
+                onPressed: message.isDeducted
+                    ? null
+                    : () => onDeductTap(message.id, message.ingredients!, message.mealName, message.nutrition),
+                icon: Icon(
+                  message.isDeducted ? Icons.check_circle_outline : Icons.remove_shopping_cart,
+                  size: 16,
+                ),
+                label: Text(message.isDeducted ? '차감됨' : '재고 차감'),
                 style: ElevatedButton.styleFrom(
                   foregroundColor: Colors.white,
+                  // disabled 상태 색 명시 (기본은 너무 흐릿함)
+                  disabledBackgroundColor: AppColors.surfaceDark,
+                  disabledForegroundColor: AppColors.warmBrown,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 8,
