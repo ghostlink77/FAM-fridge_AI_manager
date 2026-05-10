@@ -13,6 +13,7 @@ import '../widgets/chat/analysis_card.dart';
 import '../widgets/chat/message_bubble.dart';
 import '../widgets/chat/deduction_dialog.dart';
 import '../widgets/chat/discard_dialog.dart';
+import 'profile_page.dart';
 
 class ChatbotPage extends StatefulWidget {
   final String userId;
@@ -51,6 +52,29 @@ class _ChatbotPageState extends State<ChatbotPage> {
       appBar: AppBar(
         title: const Text('레시피 챗봇'),
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: '내 정보',
+            onPressed: () async {
+              // ProfilePage가 저장 시 true를 pop으로 돌려줌
+              // → 새 프로필 반영을 위해 챗봇 즉시 재초기화
+              final updated = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProfilePage(userId: widget.userId),
+                ),
+              );
+              if (updated == true && mounted) {
+                setState(() {
+                  _isInitializing = true;
+                  _messages.clear();
+                });
+                await _initChatbot();
+              }
+            },
+          ),
+        ],
       ),
       body: _isInitializing
         ? const Center(child: CircularProgressIndicator())
@@ -226,14 +250,31 @@ class _ChatbotPageState extends State<ChatbotPage> {
       inventoryText = '현재 사용자의 냉장고에 있는 재료:\n${sections.join('\n\n')}';
     }
 
-    // 3. 프롬프트 파일 읽기 + 재고 정보 삽입
+    // 3. 사용자 프로필(알레르기/비선호/선호) 로드
+    //    Firestore users/{uid} 문서에서 직접 읽음. 문서 없거나 필드 없으면 '없음'으로 처리.
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.userId)
+        .get();
+    final profileData = userDoc.data();
+    final allergiesList = (profileData?['allergies'] as List?)?.cast<String>() ?? [];
+    final dislikesList = (profileData?['dislikes'] as List?)?.cast<String>() ?? [];
+    final preferencesList = (profileData?['preferences'] as List?)?.cast<String>() ?? [];
+    final allergiesStr = allergiesList.isEmpty ? '없음' : allergiesList.join(', ');
+    final dislikesStr = dislikesList.isEmpty ? '없음' : dislikesList.join(', ');
+    final preferencesStr = preferencesList.isEmpty ? '없음' : preferencesList.join(', ');
+
+    // 4. 프롬프트 파일 읽기 + 재고/프로필 정보 삽입
     final todayStr = '${now.year}년 ${now.month}월 ${now.day}일';
 
     final promptTemplate = await rootBundle.loadString('assets/chatbot_prompt.txt');
     final prompt = promptTemplate
         .replaceAll('{INVENTORY}', inventoryText)
         .replaceAll('{USERNAME}', widget.userId)
-        .replaceAll('{DATE}', todayStr);
+        .replaceAll('{DATE}', todayStr)
+        .replaceAll('{ALLERGIES}', allergiesStr)
+        .replaceAll('{DISLIKES}', dislikesStr)
+        .replaceAll('{PREFERENCES}', preferencesStr);
 
     _model = GenerativeModel(
       model: 'gemini-2.5-flash',

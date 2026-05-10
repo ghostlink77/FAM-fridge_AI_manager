@@ -4,6 +4,7 @@ import 'package:table_calendar/table_calendar.dart';
 import '../theme/app_colors.dart';
 import '../widgets/main_bottom_nav.dart';
 import '../utils/freshness_utils.dart';
+import 'profile_page.dart';
 
 class CalendarItem {
   final String name;
@@ -73,6 +74,18 @@ class _CalendarPageState extends State<CalendarPage> {
       appBar: AppBar(
         title: const Text('소비기한 캘린더'),
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: '내 정보',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProfilePage(userId: widget.userId),
+              ),
+            ),
+          ),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance

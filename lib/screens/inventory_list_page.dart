@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/main_bottom_nav.dart';
 import '../theme/app_colors.dart';
 import '../utils/freshness_utils.dart';
+import 'profile_page.dart';
 
 class InventoryItem {
   final String id;
@@ -130,6 +131,18 @@ class _InventoryListPageState extends State<InventoryListPage>
           title: Text('${widget.userId}님의 냉장고'),
           automaticallyImplyLeading: false,
           elevation: 0,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.person_outline),
+              tooltip: '내 정보',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProfilePage(userId: widget.userId),
+                ),
+              ),
+            ),
+          ],
           bottom: TabBar(
             controller: _tabController,
             tabs: const [

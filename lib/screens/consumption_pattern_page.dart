@@ -7,6 +7,7 @@ import '../widgets/main_bottom_nav.dart';
 import '../theme/app_colors.dart';
 import 'manual_meal_record_page.dart';
 import 'meal_calendar_page.dart';
+import 'profile_page.dart';
 
 class ConsumptionPatternPage extends StatefulWidget {
   final String userId;
@@ -231,6 +232,18 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
         title: const Text('소비패턴 분석'),
         backgroundColor: AppColors.primaryDark,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: '내 정보',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProfilePage(userId: widget.userId),
+              ),
+            ),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())  // 로딩 중
