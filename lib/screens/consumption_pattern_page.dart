@@ -337,6 +337,10 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
                 children: [
                   Text('영양 균형 (일평균)',
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.primaryDark)),
+                  const SizedBox(height: 2),
+                  // 면책 문구: LLM 기반 영양 추정의 한계 명시 (Fridolfsson et al. 2025 참조)
+                  Text('※ AI 추정치이며 정밀 측정 용도가 아닙니다.',
+                      style: TextStyle(fontSize: 10, color: AppColors.warmBrown)),
                   const SizedBox(height: 12),
                   // 탄단지 수치
                   Row(

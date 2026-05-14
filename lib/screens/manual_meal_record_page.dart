@@ -516,7 +516,7 @@ class _ManualMealRecordPageState extends State<ManualMealRecordPage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '저장 시 AI가 영양 정보를 자동으로 추정합니다',
+                      'AI가 영양 정보를 자동 추정하며, 참고용 수치입니다',
                       style: TextStyle(
                         fontSize: 11,
                         color: AppColors.warmBrown,

@@ -14,6 +14,7 @@ import '../widgets/chat/message_bubble.dart';
 import '../widgets/chat/deduction_dialog.dart';
 import '../widgets/chat/discard_dialog.dart';
 import 'profile_page.dart';
+import '../constants/nutrition_db.dart';
 
 class ChatbotPage extends StatefulWidget {
   final String userId;
@@ -275,7 +276,9 @@ class _ChatbotPageState extends State<ChatbotPage> {
         .replaceAll('{DATE}', todayStr)
         .replaceAll('{ALLERGIES}', allergiesStr)
         .replaceAll('{DISLIKES}', dislikesStr)
-        .replaceAll('{PREFERENCES}', preferencesStr);
+        .replaceAll('{PREFERENCES}', preferencesStr)
+        // 영양 추정용 100개 식재료 참조표 (식약처 기반)
+        .replaceAll('{NUTRITION_DB}', buildNutritionDbContext());
 
     _model = GenerativeModel(
       model: 'gemini-2.5-flash',
