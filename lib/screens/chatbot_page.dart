@@ -272,11 +272,16 @@ class _ChatbotPageState extends State<ChatbotPage> {
     final promptTemplate = await rootBundle.loadString('assets/chatbot_prompt.txt');
     final prompt = promptTemplate
         .replaceAll('{INVENTORY}', inventoryText)
-        .replaceAll('{USERNAME}', widget.userId)
         .replaceAll('{DATE}', todayStr)
         .replaceAll('{ALLERGIES}', allergiesStr)
         .replaceAll('{DISLIKES}', dislikesStr)
         .replaceAll('{PREFERENCES}', preferencesStr)
+        // username: 시연용 팀장 이름('승겸님')으로 하드코딩.
+        // 프롬프트 작성자가 어떤 변형을 써도 잡히도록 4가지 형태 모두 치환.
+        .replaceAll('{username}', '승겸님')
+        .replaceAll('{USERNAME}', '승겸님')
+        .replaceAll('{user}', '승겸님')
+        .replaceAll('{USER}', '승겸님')
         // 영양 추정용 100개 식재료 참조표 (식약처 기반)
         .replaceAll('{NUTRITION_DB}', buildNutritionDbContext());
 
@@ -629,7 +634,12 @@ class _ChatbotPageState extends State<ChatbotPage> {
             if (newQty <= 0) {
               await doc.reference.delete();
             } else {
-              await doc.reference.update({'quantity': newQty});
+              // confirmed: true — 챗봇으로 차감했다는 건 사용자가 인지한 것이므로
+              // 인벤토리 리스트의 NEW 뱃지도 같이 떼어냄. (delete 케이스는 문서 자체 삭제로 자연 해제)
+              await doc.reference.update({
+                'quantity': newQty,
+                'confirmed': true,
+              });
             }
             break;
           }

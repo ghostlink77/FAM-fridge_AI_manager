@@ -29,7 +29,7 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
   double _avgProtein = 0;
   double _avgCarbs = 0;
   double _avgFat = 0;
-  // 폐기 현황 (최근 30일)
+  // 폐기 현황 (최근 14일)
   int _recentDiscardCount = 0;
   List<MapEntry<String, int>> _topDiscardedItems = [];
   // AI 식습관 피드백
@@ -43,10 +43,15 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
     _loadData();  // 페이지 열릴 때 데이터 로드
   }
   Future<void> _loadData() async {
+    // 최근 14일(2주) 데이터로 분석. meal_records와 discard_records 모두 동일한 시간 범위 사용.
+    final cutoff = DateTime.now().subtract(const Duration(days: 14));
+    final cutoffTimestamp = Timestamp.fromDate(cutoff);
+
     final snapshot = await FirebaseFirestore.instance
         .collection('users')
         .doc(widget.userId)
         .collection('meal_records')
+        .where('mealTime', isGreaterThan: cutoffTimestamp)
         .orderBy('mealTime', descending: true)
         .get();
 
@@ -79,13 +84,12 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
       }
     }
 
-    // 폐기 기록 로딩 (최근 30일)
-    final cutoff = DateTime.now().subtract(const Duration(days: 30));
+    // 폐기 기록 로딩 (최근 14일) — 위에서 정의한 cutoffTimestamp 재사용
     final discardSnapshot = await FirebaseFirestore.instance
         .collection('users')
         .doc(widget.userId)
         .collection('discard_records')
-        .where('discardedAt', isGreaterThan: Timestamp.fromDate(cutoff))
+        .where('discardedAt', isGreaterThan: cutoffTimestamp)
         .get();
 
     // 식재료 이름별 폐기 횟수 집계
@@ -229,7 +233,7 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('소비패턴 분석'),
+        title: const Text('식습관 분석'),
         backgroundColor: AppColors.primaryDark,
         foregroundColor: Colors.white,
         actions: [
@@ -262,7 +266,7 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
                     ),
                     child: Column(
                       children: [
-                        Text('최근 30일 동안 총 식사 횟수',
+                        Text('최근 14일 동안 요리 횟수',
                             style: TextStyle(fontSize: 11, color: AppColors.warmBrown)),
                         const SizedBox(height: 4),
                         Text('$_totalMeals회',
@@ -281,7 +285,7 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
                     ),
                     child: Column(
                       children: [
-                        Text('일평균 칼로리(추정치)',
+                        Text('식사 평균 칼로리(추정치)',
                             style: TextStyle(fontSize: 11, color: Colors.green[800])),
                         const SizedBox(height: 4),
                         Text('${_avgCalories.round()}kcal',
@@ -335,7 +339,7 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('영양 균형 (일평균)',
+                  Text('영양 균형 (식사 평균)',
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.primaryDark)),
                   const SizedBox(height: 2),
                   // 면책 문구: LLM 기반 영양 추정의 한계 명시 (Fridolfsson et al. 2025 참조)
@@ -429,11 +433,11 @@ class _ConsumptionPatternPageState extends State<ConsumptionPatternPage> {
                       ),
                     )
                   else ...[
-                    // 최근 30일 폐기 건수
+                    // 최근 14일 폐기 건수
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('최근 30일 폐기',
+                        Text('최근 14일 폐기',
                             style: TextStyle(fontSize: 12, color: AppColors.warmBrown)),
                         Text('$_recentDiscardCount건',
                             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.primaryDark)),

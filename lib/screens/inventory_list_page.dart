@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../main.dart' show routeObserver;
 import '../widgets/main_bottom_nav.dart';
 import '../theme/app_colors.dart';
 import '../utils/freshness_utils.dart';
@@ -12,6 +14,11 @@ class InventoryItem {
   final List<String> consumeByDates;
   final String registrationDate;
   final num quantity;
+  // 라즈베리파이 웹캠 자동 등록 아이템의 NEW 뱃지 판별용
+  // - source: 등록 경로 ('manual' | 'ocr' | 'voice' | 'webcam' | '')
+  // - confirmed: 사용자가 확인했는지 (webcam에서 자동 등록된 직후엔 false)
+  final String source;
+  final bool confirmed;
 
   InventoryItem({
     required this.id,
@@ -20,7 +27,12 @@ class InventoryItem {
     required this.consumeByDates,
     required this.registrationDate,
     required this.quantity,
+    this.source = '',
+    this.confirmed = true,
   });
+
+  /// 웹캠에서 자동 등록됐고 사용자가 아직 확인하지 않은 아이템
+  bool get isNewFromCamera => source == 'webcam' && !confirmed;
 
   static List<String> _extractConsumeByDates(
     dynamic consumeByDatesRaw,
@@ -59,6 +71,11 @@ class InventoryItem {
       consumeByDates: consumeByDates,
       registrationDate: data['registrationDate'] ?? '',
       quantity: (data['quantity'] as num?) ?? 0,
+      // confirmed 필드가 없으면 false로 처리 — 라즈베리파이는 source만 박으면 NEW 동작.
+      // source != 'webcam'인 데이터(manual/ocr/voice/기존)는 isNewFromCamera에서
+      // source 체크에 걸려 어차피 NEW 안 뜨므로 안전.
+      source: (data['source'] as String?) ?? '',
+      confirmed: (data['confirmed'] as bool?) ?? false,
     );
   }
 }
@@ -73,8 +90,15 @@ class InventoryListPage extends StatefulWidget {
 }
 
 class _InventoryListPageState extends State<InventoryListPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, RouteAware {
   late TabController _tabController;
+
+  // 자동 NEW 해제 시스템
+  // - 사용자가 목록 페이지에 머무는 동안은 NEW 유지 (의도된 동작).
+  // - 다른 페이지로 이동(탭 전환, FAB push, 프로필 push 등)할 때만 NEW를 떼어냄.
+  // - RouteAware의 didPushNext에서 처리 — 페이지 전환 이벤트를 정확히 감지.
+  // - _pendingNewItemIds: 현재 NEW 상태인 아이템 ID 목록 (build 시 매번 갱신).
+  Set<String> _pendingNewItemIds = {};
 
   bool _isValidDateString(String value) {
     if (value.trim().isEmpty) return false;
@@ -88,9 +112,56 @@ class _InventoryListPageState extends State<InventoryListPage>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // RouteObserver에 자기 자신을 등록 → 페이지 라우트 이벤트 콜백을 받기 시작.
+    // ModalRoute.of(context)는 didChangeDependencies에서만 안전하게 호출 가능 (initState에선 불가).
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
   void dispose() {
+    // RouteObserver 구독 해제 (메모리 누수 방지) + 마지막 fallback으로 NEW 처리.
+    routeObserver.unsubscribe(this);
+    if (_pendingNewItemIds.isNotEmpty) {
+      _autoConfirmNewItems(_pendingNewItemIds);
+    }
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// 다른 라우트가 push되어 이 페이지가 화면에서 가려지는 순간 호출됨.
+  /// - 탭 전환(pushReplacement) / FAB로 등록 페이지(push) / 프로필 push 등 모두 잡힘.
+  /// - 풀 편집 다이얼로그는 PageRoute가 아니라서(showDialog는 dialog route) 잡히지 않음 → NEW 유지.
+  @override
+  void didPushNext() {
+    if (_pendingNewItemIds.isNotEmpty) {
+      _autoConfirmNewItems(_pendingNewItemIds);
+    }
+    super.didPushNext();
+  }
+
+  /// NEW 아이템(웹캠 등록 + 미확인)을 일괄로 confirmed=true 처리.
+  /// build 중이나 dispose 후 호출되어도 안전하도록 mounted/setState 호출 없음 (Firestore write만).
+  Future<void> _autoConfirmNewItems(Set<String> ids) async {
+    if (ids.isEmpty) return;
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      final inventoryRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .collection('inventory');
+      for (final id in ids) {
+        batch.update(inventoryRef.doc(id), {'confirmed': true});
+      }
+      await batch.commit();
+    } catch (_) {
+      // dispose 시점이나 화면 갱신 도중 호출될 수 있음 → 조용히 무시
+      // (다음 페이지 진입 시 다시 시도되므로 결국 처리됨)
+    }
   }
 
   Stream<List<InventoryItem>> getInventoryStream() {
@@ -105,21 +176,25 @@ class _InventoryListPageState extends State<InventoryListPage>
   }
 
   List<InventoryItem> getSortedItems(List<InventoryItem> items, int tabIndex) {
-    final sorted = List<InventoryItem>.from(items);
+    // 웹캠 자동 등록 + 미확인 아이템은 어느 탭에서든 최상단에 고정.
+    // (등록일 내림차순 — 같은 날 여러 개면 임의 순서)
+    final newItems = items.where((it) => it.isNewFromCamera).toList()
+      ..sort((a, b) => b.registrationDate.compareTo(a.registrationDate));
+    final normalItems = items.where((it) => !it.isNewFromCamera).toList();
 
     switch (tabIndex) {
       case 0:
-        sorted.sort((a, b) => a.consumeByDate.compareTo(b.consumeByDate));
+        normalItems.sort((a, b) => a.consumeByDate.compareTo(b.consumeByDate));
         break;
       case 1:
-        sorted.sort((a, b) => a.name.compareTo(b.name));
+        normalItems.sort((a, b) => a.name.compareTo(b.name));
         break;
       case 2:
-        sorted.sort((a, b) => b.registrationDate.compareTo(a.registrationDate));
+        normalItems.sort((a, b) => b.registrationDate.compareTo(a.registrationDate));
         break;
     }
 
-    return sorted;
+    return [...newItems, ...normalItems];
   }
 
   @override
@@ -132,6 +207,14 @@ class _InventoryListPageState extends State<InventoryListPage>
           automaticallyImplyLeading: false,
           elevation: 0,
           actions: [
+            // 디버그 빌드에서만 표시 — release 빌드(`flutter build apk --release`)에서는 자동으로 사라짐.
+            // 라즈베리파이 없이 NEW 뱃지 동작을 테스트하기 위한 시뮬레이션 버튼.
+            if (kDebugMode)
+              IconButton(
+                icon: const Icon(Icons.bug_report),
+                tooltip: '[DEBUG] 웹캠 등록 시뮬레이션',
+                onPressed: _debugAddWebcamItem,
+              ),
             IconButton(
               icon: const Icon(Icons.person_outline),
               tooltip: '내 정보',
@@ -166,6 +249,15 @@ class _InventoryListPageState extends State<InventoryListPage>
             }
 
             final inventoryItems = snapshot.data ?? [];
+
+            // 매 stream 업데이트마다 현재 NEW 아이템 ID 갱신.
+            // - 라즈베리파이가 페이지 머무는 중에 새로 등록해도 자동 추적됨.
+            // - 페이지 떠날 때(didPushNext) 이 Set 기준으로 일괄 confirm 처리.
+            _pendingNewItemIds = inventoryItems
+                .where((it) => it.isNewFromCamera)
+                .map((it) => it.id)
+                .toSet();
+
             return TabBarView(
               controller: _tabController,
               children: [
@@ -229,8 +321,11 @@ class _InventoryListPageState extends State<InventoryListPage>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: BorderSide(
-              color: statusColor.withValues(alpha: 0.3),
-              width: 0.5,
+              // NEW 아이템은 주황색 테두리로 강조 (시각 구분)
+              color: item.isNewFromCamera
+                  ? Colors.orange
+                  : statusColor.withValues(alpha: 0.3),
+              width: item.isNewFromCamera ? 1.5 : 0.5,
             ),
           ),
           child: InkWell(
@@ -278,13 +373,39 @@ class _InventoryListPageState extends State<InventoryListPage>
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Expanded(
-                              child: Text(
-                                item.name,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                              child: Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      item.name,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  // 웹캠으로 자동 등록된 미확인 아이템엔 [NEW] 뱃지
+                                  if (item.isNewFromCamera) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Text(
+                                        'NEW',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                             Text(
@@ -458,6 +579,9 @@ class _InventoryListPageState extends State<InventoryListPage>
         'quantity': quantity,
         'consumeByDate': consumeByDate,
         'consumeByDates': [consumeByDate],
+        // 사용자가 풀 편집 다이얼로그에서 저장 = 확인 완료 → NEW 뱃지 제거
+        // (일반 아이템엔 영향 없음, 멱등)
+        'confirmed': true,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -621,6 +745,51 @@ class _InventoryListPageState extends State<InventoryListPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('소비 처리 실패: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  /// [DEBUG ONLY] 라즈베리파이 웹캠 등록을 시뮬레이션.
+  /// AppBar의 bug 아이콘 탭 시 호출. release 빌드에서는 버튼이 렌더링되지 않으므로
+  /// 이 메서드도 호출 경로가 없어 dead code로 처리됨 (안전).
+  /// confirmed 필드는 일부러 박지 않음 — 실제 라즈베리파이도 source만 박을 예정이고
+  /// fromFirestore의 디폴트(false)로 처리되는 흐름을 그대로 검증하기 위함.
+  Future<void> _debugAddWebcamItem() async {
+    try {
+      final now = DateTime.now();
+      final dateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .collection('inventory')
+          .add({
+        'name': '테스트우유',
+        'quantity': 1,
+        'consumeByDate': '',
+        'consumeByDates': <String>[],
+        'registrationDate': dateStr,
+        'source': 'webcam',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('[DEBUG] 웹캠 등록 시뮬레이션 — 테스트우유 추가됨'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('[DEBUG] 시뮬레이션 실패: $e'),
             duration: const Duration(seconds: 2),
           ),
         );

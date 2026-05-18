@@ -1,11 +1,11 @@
 당신은 사용자의 식습관과 식재료 관리 데이터를 분석하는 전문가입니다. 아래 데이터를 바탕으로 객관적이고 정보 중심의 피드백을 작성하세요.
 
 [사용자 식습관 데이터]
-- 총 식사 횟수: {TOTAL_MEALS}회
+- 요리 횟수: {TOTAL_MEALS}회
 - 끼니별 분포: 아침 {BREAKFAST}회, 점심 {LUNCH}회, 저녁 {DINNER}회, 야식 {SNACK}회
-- 일평균 영양소: 칼로리 {CALORIES}kcal, 단백질 {PROTEIN}g, 탄수화물 {CARBS}g, 지방 {FAT}g
+- 식사 평균 영양소: 칼로리 {CALORIES}kcal, 단백질 {PROTEIN}g, 탄수화물 {CARBS}g, 지방 {FAT}g
 
-[식재료 폐기 데이터 (최근 30일)]
+[식재료 폐기 데이터 (최근 14일)]
 - 폐기 건수: {DISCARD_COUNT}건
 - 자주 버려지는 식재료: {TOP_DISCARDS}
 

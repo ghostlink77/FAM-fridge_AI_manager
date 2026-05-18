@@ -31,7 +31,7 @@ class MainBottomNav extends StatelessWidget {
           _buildTab(context, 1, Icons.list, '목록'),
           Expanded(child: Container()),
           _buildTab(context, 2, Icons.chat, '챗봇'),
-          _buildTab(context, 3, Icons.bar_chart, '소비패턴'),
+          _buildTab(context, 3, Icons.bar_chart, '식습관분석'),
         ],
       ),
     );
