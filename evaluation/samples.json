@@ -1,0 +1,68 @@
+{
+  "_meta": {
+    "description": "FAM 소비기한 추정 평가용 표본 (N=40)",
+    "ground_truth_unit": "days from purchase date",
+    "ground_truth_basis": "냉장 보관(4°C) 기준, 한국 일반 가정 환경 가정. 가공식품은 식약처 소비기한 참고값 일부 반영, 신선식품은 농촌진흥청·USDA FoodKeeper 한국 보정 추정",
+    "review_required": "gongJCh이 식약처/농촌진흥청 자료로 검토 권장",
+    "format": "각 항목은 {name, category, gt_min, gt_max, storage} — storage는 prompt에 힌트로 안 들어감"
+  },
+  "samples": [
+    {"id": "f01", "name": "사과 1개",              "category": "fruit",     "gt_min": 21,  "gt_max": 42,  "storage": "냉장"},
+    {"id": "f02", "name": "바나나 1송이",          "category": "fruit",     "gt_min": 5,   "gt_max": 10,  "storage": "실온"},
+    {"id": "f03", "name": "딸기 500g",             "category": "fruit",     "gt_min": 3,   "gt_max": 7,   "storage": "냉장"},
+    {"id": "f04", "name": "포도 1송이",            "category": "fruit",     "gt_min": 5,   "gt_max": 10,  "storage": "냉장"},
+    {"id": "f05", "name": "귤 1kg",                "category": "fruit",     "gt_min": 10,  "gt_max": 21,  "storage": "냉장"},
+    {"id": "f06", "name": "사과",                  "category": "fruit",     "gt_min": 21,  "gt_max": 42,  "storage": "냉장"},
+    {"id": "f07", "name": "딸기 1팩",              "category": "fruit",     "gt_min": 3,   "gt_max": 7,   "storage": "냉장"},
+    {"id": "f08", "name": "키위 5개입",            "category": "fruit",     "gt_min": 14,  "gt_max": 28,  "storage": "냉장"},
+    {"id": "f09", "name": "딱딱 복숭아 3개",        "category": "fruit",     "gt_min": 4,   "gt_max": 8,   "storage": "냉장"},
+    {"id": "f10", "name": "방울토마토 500g",        "category": "fruit",     "gt_min": 5,   "gt_max": 8,   "storage": "냉장"},
+
+    {"id": "v01", "name": "양파 1망",              "category": "vegetable", "gt_min": 30,  "gt_max": 60,  "storage": "실온/냉장"},
+    {"id": "v02", "name": "양파 1kg",              "category": "vegetable", "gt_min": 30,  "gt_max": 60,  "storage": "실온/냉장"},
+    {"id": "v03", "name": "감자 1kg",              "category": "vegetable", "gt_min": 30,  "gt_max": 90,  "storage": "실온"},
+    {"id": "v04", "name": "당근 500g",             "category": "vegetable", "gt_min": 14,  "gt_max": 30,  "storage": "냉장"},
+    {"id": "v05", "name": "상추 1봉",              "category": "vegetable", "gt_min": 4,   "gt_max": 7,   "storage": "냉장"},
+    {"id": "v06", "name": "대파 1단",              "category": "vegetable", "gt_min": 7,   "gt_max": 14,  "storage": "냉장"},
+    {"id": "v07", "name": "양배추 1통",            "category": "vegetable", "gt_min": 14,  "gt_max": 30,  "storage": "냉장"},
+    {"id": "v08", "name": "애호박 1개",            "category": "vegetable", "gt_min": 7,   "gt_max": 14,  "storage": "냉장"},
+    {"id": "v09", "name": "오이 2개",              "category": "vegetable", "gt_min": 7,   "gt_max": 14,  "storage": "냉장"},
+    {"id": "v10", "name": "시금치 300g",           "category": "vegetable", "gt_min": 3,   "gt_max": 5,  "storage": "냉장"},
+    {"id": "v11", "name": "가지 1개",              "category": "vegetable", "gt_min": 4,   "gt_max": 7,  "storage": "냉장"},
+    {"id": "v12", "name": "브로콜리 1송이",         "category": "vegetable", "gt_min": 6,   "gt_max": 12,  "storage": "냉장"},
+    {"id": "v13", "name": "깐쪽파 1봉",            "category": "vegetable", "gt_min": 4,   "gt_max": 7,  "storage": "냉장"},
+
+
+    {"id": "d01", "name": "서울우유 1L",           "category": "dairy",     "gt_min": 10,  "gt_max": 14,  "storage": "냉장"},
+    {"id": "d02", "name": "매일우유 900mL",        "category": "dairy",     "gt_min": 10,  "gt_max": 14,  "storage": "냉장"},
+    {"id": "d03", "name": "우유 1L",               "category": "dairy",     "gt_min": 10,  "gt_max": 14,  "storage": "냉장"},
+    {"id": "d04", "name": "플레인요거트 500g",      "category": "dairy",     "gt_min": 10,  "gt_max": 20,  "storage": "냉장"},
+    {"id": "d05", "name": "체다치즈 슬라이스 200g",  "category": "dairy",     "gt_min": 60,  "gt_max": 120, "storage": "냉장"},
+    {"id": "d06", "name": "버터 200g",             "category": "dairy",     "gt_min": 90,  "gt_max": 140, "storage": "냉장"},
+    {"id": "d07", "name": "두유 190mL 6입",        "category": "dairy",     "gt_min": 60,  "gt_max": 90,  "storage": "냉장/실온"},
+    {"id": "d08", "name": "계란 10구",             "category": "dairy",     "gt_min": 21,  "gt_max": 35,  "storage": "냉장"},
+    {"id": "d09", "name": "야쿠르트 6개입",         "category": "dairy",     "gt_min": 20,  "gt_max": 30,  "storage": "냉장"},
+    {"id": "d10", "name": "헬리코박터 프로젝트 윌",  "category": "dairy",     "gt_min": 5,   "gt_max": 10,  "storage": "냉장"},
+
+    {"id": "m01", "name": "삼겹살 200g",           "category": "meat",      "gt_min": 2,   "gt_max": 4,   "storage": "냉장"},
+    {"id": "m02", "name": "삼겹살 한근",           "category": "meat",      "gt_min": 2,   "gt_max": 4,   "storage": "냉장"},
+    {"id": "m03", "name": "삼겹살 600g",           "category": "meat",      "gt_min": 2,   "gt_max": 4,   "storage": "냉장"},
+    {"id": "m04", "name": "닭가슴살 500g",         "category": "meat",      "gt_min": 1,   "gt_max": 3,   "storage": "냉장"},
+    {"id": "m05", "name": "소고기 등심 300g",      "category": "meat",      "gt_min": 3,   "gt_max": 5,   "storage": "냉장"},
+    {"id": "m06", "name": "고등어 2마리",          "category": "meat",      "gt_min": 1,   "gt_max": 2,   "storage": "냉장"},
+    {"id": "m07", "name": "연어 300g",             "category": "meat",      "gt_min": 1,   "gt_max": 2,   "storage": "냉장"},
+    {"id": "m08", "name": "새우 200g",             "category": "meat",      "gt_min": 1,   "gt_max": 2,   "storage": "냉장"},
+    {"id": "m09", "name": "베이컨 200g",           "category": "meat",      "gt_min": 9,   "gt_max": 14,   "storage": "냉장"},
+
+
+    {"id": "p01", "name": "신라면 5입",            "category": "processed", "gt_min": 150, "gt_max": 240, "storage": "실온"},
+    {"id": "p02", "name": "스팸 200g",             "category": "processed", "gt_min": 730, "gt_max": 1095,"storage": "실온"},
+    {"id": "p03", "name": "두부 300g",             "category": "processed", "gt_min": 10,  "gt_max": 14,  "storage": "냉장"},
+    {"id": "p04", "name": "참치캔 150g",           "category": "processed", "gt_min": 730, "gt_max": 1825,"storage": "실온"},
+    {"id": "p05", "name": "식빵 1봉",              "category": "processed", "gt_min": 3,   "gt_max": 6,   "storage": "실온/냉장"},
+    {"id": "p06", "name": "어묵 300g",             "category": "processed", "gt_min": 7,   "gt_max": 14,  "storage": "냉장"},
+    {"id": "p07", "name": "김치 1kg",              "category": "processed", "gt_min": 30,  "gt_max": 90,  "storage": "냉장"},
+    {"id": "p08", "name": "햄 200g",               "category": "processed", "gt_min": 14,  "gt_max": 30,  "storage": "냉장"},
+    {"id": "p09", "name": "부침용 국산콩 두부 1팩",  "category": "processed", "gt_min": 14,  "gt_max": 24,  "storage": "냉장"}
+  ]
+}

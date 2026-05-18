@@ -1,0 +1,6 @@
+﻿category,baseline,cot,few_shot_cot
+dairy,42.9,36.7,60.0
+fruit,70.0,86.7,83.3
+meat,100.0,85.2,92.6
+processed,26.9,63.0,70.4
+vegetable,74.4,94.9,82.1

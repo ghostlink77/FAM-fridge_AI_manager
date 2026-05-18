@@ -1,0 +1,4 @@
+﻿condition,n,in_range_rate,mean_abs_error,median_abs_error,in_range_rate_pct,mean_std_across_runs
+baseline,150,0.64,26.366666666666667,0.0,64.0,28.35
+cot,153,0.7450980392156863,12.568627450980392,0.0,74.5,20.24
+few_shot_cot,153,0.7777777777777778,8.34640522875817,0.0,77.8,12.25
